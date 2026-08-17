@@ -79,9 +79,6 @@ export default async function LoginPage({
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 40, maxWidth: 540 }}>
-          <div style={{ marginBottom: 18 }}>
-            <Logo size={96} />
-          </div>
           <div
             style={{
               display: 'inline-block',
