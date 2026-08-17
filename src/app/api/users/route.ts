@@ -3,6 +3,7 @@ import { COLLECTIONS, collection, ensureIndexes } from '@/lib/mongodb';
 import { HttpError, requireUser, route } from '@/lib/guard';
 import { listUsers, toAppUser, type UserDoc } from '@/lib/users';
 import { ROLES, type Role } from '@/lib/types';
+import { DEPARTMENT } from '@/lib/brand';
 
 export const runtime = 'nodejs';
 
@@ -24,7 +25,6 @@ export const POST = route(async (req: Request) => {
     name?: string;
     email?: string;
     role?: Role;
-    department?: string;
     status?: 'active' | 'inactive';
   };
 
@@ -47,7 +47,7 @@ export const POST = route(async (req: Request) => {
     name,
     email,
     role,
-    department: body.department?.trim() || 'Sin asignar',
+    department: DEPARTMENT,
     status: body.status === 'inactive' ? 'inactive' : 'active',
     lastLogin: null,
     createdAt: now,

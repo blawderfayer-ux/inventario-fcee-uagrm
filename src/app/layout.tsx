@@ -3,9 +3,10 @@ import { ThemeProvider, themeScript } from '@/components/ThemeProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Sistema de Inventarios · FCEE UAGRM',
+  title: 'Inventario FCEE · UAGRM',
   description:
     'Sistema de Gestión de Inventarios de la Facultad de Ciencias Económicas y Empresariales — Universidad Autónoma Gabriel René Moreno.',
+  icons: { icon: '/logo-fcee.png', apple: '/logo-fcee.png' },
 };
 
 export const viewport: Viewport = {

@@ -105,7 +105,7 @@ interface UserModalProps {
 function UserModal({ user, onClose, onSaved }: UserModalProps) {
   const isEdit = !!user;
   const [form, setForm] = useState<Partial<AppUser>>(
-    user ?? { role: 'employee', status: 'active', department: '' }
+    user ?? { role: 'employee', status: 'active' }
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +119,6 @@ function UserModal({ user, onClose, onSaved }: UserModalProps) {
       name: form.name ?? '',
       email: form.email ?? '',
       role: form.role ?? 'employee',
-      department: form.department ?? '',
       status: form.status ?? 'active',
     };
 
@@ -251,15 +250,6 @@ function UserModal({ user, onClose, onSaved }: UserModalProps) {
                 </select>
               </FormField>
             </div>
-            <FormField label="Departamento" required>
-              <input
-                required
-                value={form.department ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-                placeholder="Ej: Dpto. Contabilidad"
-                style={{ width: '100%', height: 36, padding: '0 10px' }}
-              />
-            </FormField>
           </div>
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
@@ -321,11 +311,7 @@ export default function AdminUsers() {
 
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
-    return (
-      u.name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.department.toLowerCase().includes(q)
-    );
+    return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
   });
 
   const handleSaved = (u: AppUser) => {
@@ -430,7 +416,7 @@ export default function AdminUsers() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre, correo o departamento..."
+            placeholder="Buscar por nombre o correo..."
             style={{ width: '100%', height: 34, paddingLeft: 32, paddingRight: 10 }}
           />
         </div>
@@ -456,7 +442,7 @@ export default function AdminUsers() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }} data-desktop-table>
           <thead>
             <tr style={{ backgroundColor: '#13294B' }}>
-              {['Nombre', 'Correo', 'Rol', 'Departamento', 'Estado', 'Último acceso', ''].map(
+              {['Nombre', 'Correo', 'Rol', 'Estado', 'Último acceso', ''].map(
                 (h, i) => (
                   <th
                     key={i}
@@ -485,7 +471,7 @@ export default function AdminUsers() {
             ) : filtered.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={6}
                   style={{
                     padding: '32px 16px',
                     textAlign: 'center',
@@ -515,9 +501,6 @@ export default function AdminUsers() {
                   </td>
                   <td style={{ padding: '11px 16px' }}>
                     <RoleBadge role={u.role} />
-                  </td>
-                  <td style={{ padding: '11px 16px', fontSize: 12, color: 'var(--muted-fg)' }}>
-                    {u.department}
                   </td>
                   <td style={{ padding: '11px 16px' }}>
                     <StatusBadge status={u.status} />

@@ -1,5 +1,6 @@
 import { ObjectId, type WithId } from 'mongodb';
 import { COLLECTIONS, collection, ensureIndexes } from './mongodb';
+import { DEPARTMENT } from './brand';
 import type { AppUser, Role } from './types';
 
 export interface UserDoc {
@@ -103,7 +104,7 @@ export async function upsertGoogleUser(input: {
     name: input.name?.trim() || email.split('@')[0],
     email,
     role,
-    department: role === 'admin' ? 'Decanato FCEE' : 'Sin asignar',
+    department: DEPARTMENT,
     status: 'active',
     image: input.image ?? undefined,
     lastLogin: now,

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ROLE_LABELS, type Role } from '@/lib/types';
 import { BarChartIcon, BoxIcon, HomeIcon, LogOutIcon, UsersIcon, XIcon } from './Icons';
+import Logo from './Logo';
 
 interface NavItem {
   href: string;
@@ -81,20 +82,7 @@ export default function Sidebar({ role, open, onClose, onLogout }: SidebarProps)
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  backgroundColor: '#9E1B32',
-                  borderRadius: 4,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <span style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>U</span>
-              </div>
+              <Logo size={36} />
               <div>
                 <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>
                   FCEE · UAGRM
@@ -241,8 +229,6 @@ export default function Sidebar({ role, open, onClose, onLogout }: SidebarProps)
             }}
           >
             FCEE UAGRM © {new Date().getFullYear()}
-            <br />
-            Sistema de Inventarios v2.4
           </div>
         </div>
       </aside>

@@ -30,10 +30,8 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const { products, doc } = await findOr404(id);
 
+  // El SKU se conserva: se asignó al dar de alta y no se edita.
   const data = normalizePayload((await req.json()) as ProductPayload);
-
-  const clash = await products.findOne({ sku: data.sku, _id: { $ne: doc._id } });
-  if (clash) throw new HttpError(409, `Ya existe otro producto con el SKU ${data.sku}.`);
 
   // Si el reponedor sustituyó la fotografía, la anterior deja de tener dueño.
   if (doc.imageUrl && doc.imageUrl !== data.imageUrl) {

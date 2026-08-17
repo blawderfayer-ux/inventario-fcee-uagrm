@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import ThemeToggleButton from '@/components/ThemeToggleButton';
+import Logo from '@/components/Logo';
 import ErrorBanner from '@/components/ErrorBanner';
 import { CheckIcon, HomeIcon, LogOutIcon, MinusIcon, PlusIcon, SearchIcon } from '@/components/Icons';
 import { api } from '@/lib/api';
@@ -114,19 +115,7 @@ export default function EmployeeKiosk({ user, canReturnToPanel, onLogout }: Prop
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              backgroundColor: '#9E1B32',
-              borderRadius: 3,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <span style={{ color: '#fff', fontWeight: 800, fontSize: 13 }}>U</span>
-          </div>
+          <Logo size={30} />
           <div>
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>FCEE · UAGRM</div>
             <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10 }}>Kiosco de Extracción</div>
@@ -421,11 +410,6 @@ export default function EmployeeKiosk({ user, canReturnToPanel, onLogout }: Prop
                         </span>
                       )}
                     </div>
-                    {result.location && (
-                      <div style={{ fontSize: 12, color: 'var(--muted-fg)', marginTop: 4 }}>
-                        {result.location}
-                      </div>
-                    )}
                   </div>
                 </div>
 

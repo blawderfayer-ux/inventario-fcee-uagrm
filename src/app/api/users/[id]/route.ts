@@ -4,6 +4,7 @@ import { COLLECTIONS, collection } from '@/lib/mongodb';
 import { HttpError, requireUser, route } from '@/lib/guard';
 import { toAppUser, type UserDoc } from '@/lib/users';
 import { ROLES, type Role } from '@/lib/types';
+import { DEPARTMENT } from '@/lib/brand';
 
 export const runtime = 'nodejs';
 
@@ -42,7 +43,6 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
     name?: string;
     email?: string;
     role?: Role;
-    department?: string;
     status?: 'active' | 'inactive';
   };
 
@@ -70,7 +70,7 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
     name: body.name?.trim() || doc.name,
     email,
     role,
-    department: body.department?.trim() || doc.department,
+    department: DEPARTMENT,
     status,
     updatedAt: new Date(),
   };

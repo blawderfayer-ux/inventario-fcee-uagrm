@@ -18,7 +18,6 @@ export interface ProductDoc {
   unitPrice: number;
   minStock: number;
   unit: string;
-  location: string;
   imageUrl: string;
   description: string;
   createdAt: Date;
@@ -51,7 +50,6 @@ export function toProduct(doc: WithId<ProductDoc>): Product {
     unitPrice: doc.unitPrice,
     minStock: doc.minStock,
     unit: doc.unit,
-    location: doc.location,
     imageUrl: doc.imageUrl,
     description: doc.description,
     lastUpdated: formatDateTime(doc.updatedAt),
@@ -258,4 +256,38 @@ export async function listCategories(): Promise<string[]> {
   const categories = await collection<{ name: string }>(COLLECTIONS.categories);
   const docs = await categories.find({}).sort({ name: 1 }).toArray();
   return docs.map((d) => d.name);
+}
+
+/**
+ * Genera el siguiente código de producto en orden de alta: FCEE-0001,
+ * FCEE-0002, etc. El contador se incrementa de forma atómica con
+ * findOneAndUpdate, así dos altas simultáneas nunca reciben el mismo código.
+ */
+export async function nextSku(): Promise<string> {
+  const counters = await collection<{ _id: string; seq: number }>(COLLECTIONS.counters);
+  const result = await counters.findOneAndUpdate(
+    { _id: 'sku' },
+    { $inc: { seq: 1 } },
+    { upsert: true, returnDocument: 'after' }
+  );
+  const seq = result?.seq ?? 1;
+  return `FCEE-${String(seq).padStart(4, '0')}`;
+}
+
+/**
+ * Alinea el contador con los productos ya existentes. Se llama antes de la
+ * primera generación para que los datos cargados por el seed no choquen con
+ * los códigos nuevos.
+ */
+export async function syncSkuCounter(): Promise<void> {
+  const counters = await collection<{ _id: string; seq: number }>(COLLECTIONS.counters);
+  if (await counters.findOne({ _id: 'sku' })) return;
+
+  const products = await collection<ProductDoc>(COLLECTIONS.products);
+  const total = await products.countDocuments();
+  await counters.updateOne(
+    { _id: 'sku' },
+    { $setOnInsert: { seq: total } },
+    { upsert: true }
+  );
 }

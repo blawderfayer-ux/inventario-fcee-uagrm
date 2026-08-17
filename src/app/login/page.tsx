@@ -1,5 +1,6 @@
 import { signInWithGoogle } from '../actions';
 import ThemeToggleButton from '@/components/ThemeToggleButton';
+import Logo from '@/components/Logo';
 import { ChevronRightIcon } from '@/components/Icons';
 
 const ERRORS: Record<string, string> = {
@@ -55,19 +56,7 @@ export default async function LoginPage({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              backgroundColor: '#9E1B32',
-              borderRadius: 3,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <span style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>U</span>
-          </div>
+          <Logo size={34} />
           <div>
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>FCEE · UAGRM</div>
             <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, lineHeight: 1.3 }}>
@@ -90,6 +79,9 @@ export default async function LoginPage({
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 40, maxWidth: 540 }}>
+          <div style={{ marginBottom: 18 }}>
+            <Logo size={96} />
+          </div>
           <div
             style={{
               display: 'inline-block',
@@ -106,7 +98,7 @@ export default async function LoginPage({
             Acceso institucional
           </div>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--fg)', margin: '0 0 10px', lineHeight: 1.15 }}>
-            Sistema de Inventarios v2.4
+            Inventario FCEE
           </h1>
           <p style={{ fontSize: 13, color: 'var(--muted-fg)', margin: 0, lineHeight: 1.6 }}>
             Universidad Autónoma Gabriel René Moreno

@@ -30,7 +30,6 @@ export interface Product {
   unitPrice: number;
   minStock: number;
   unit: string;
-  location: string;
   imageUrl: string;
   lastUpdated: string;
   description: string;

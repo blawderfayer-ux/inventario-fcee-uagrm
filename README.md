@@ -1,4 +1,4 @@
-# Sistema de Gestión de Inventarios — FCEE UAGRM
+# Inventario FCEE — UAGRM
 
 Aplicación web para el control de inventarios de la **Facultad de Ciencias Económicas y
 Empresariales** de la **Universidad Autónoma Gabriel René Moreno**.
@@ -16,7 +16,8 @@ datos.
 | Framework | Next.js 15 (App Router) + React 19 + TypeScript |
 | Base de datos | **MongoDB** (driver oficial) |
 | Autenticación | NextAuth v5 (Auth.js) con proveedor Google, sesión JWT |
-| Imágenes | **GridFS** dentro de la misma base MongoDB |
+| Imágenes | **GridFS** dentro de la misma base MongoDB, con recorte y quitado de fondo en el navegador |
+| Informes | Excel real (.xlsx, ExcelJS), PDF imprimible y código fuente LaTeX (.tex) |
 | Gráficos | Recharts |
 | Estilos | Tailwind v4 + variables CSS del prototipo |
 
@@ -113,7 +114,8 @@ src/
 │   └── actions.ts          Server actions de inicio y cierre de sesión
 ├── components/             Sidebar, Topbar, iconos, skeletons, tema
 ├── views/                  Las cinco pantallas del prototipo
-├── lib/                    MongoDB, GridFS, inventario, usuarios, guardas de rol
+├── lib/                    MongoDB, GridFS, inventario, usuarios, guardas de rol,
+│                           y los generadores de Excel, PDF y LaTeX
 └── types/                  Ampliación de tipos de NextAuth
 ```
 
@@ -121,21 +123,46 @@ src/
 
 | Colección | Contenido |
 | --- | --- |
-| `products` | Catálogo: SKU, nombre, categoría, stock, precio, mínimo, ubicación, foto |
-| `users` | Personas con acceso: correo, rol, departamento, estado, último acceso |
+| `products` | Catálogo: código, nombre, categoría, stock, precio, mínimo, foto |
+| `users` | Personas con acceso: correo, rol, estado, último acceso |
 | `movements` | Bitácora de ingresos, extracciones y modificaciones |
 | `categories` | Categorías administrables por el reponedor |
+| `counters` | Contador del correlativo de códigos de producto |
 | `product_images.*` | Fotografías de productos almacenadas en GridFS |
 
 Los índices (incluidos los únicos sobre `sku` y `email`) se crean solos en la primera
 consulta.
 
+## Códigos de producto
+
+El SKU no se escribe a mano: el sistema asigna `FCEE-0001`, `FCEE-0002`, … en orden de
+alta. El contador vive en la colección `counters` y se incrementa de forma atómica, así
+dos altas simultáneas nunca reciben el mismo código.
+
+## Fotografías
+
+Al elegir una imagen se abre un editor dentro del navegador donde se puede:
+
+- **Recortar** arrastrando el área que se quiere conservar.
+- **Quitar el fondo**: se elimina el fondo liso propagando desde los bordes y se
+  reemplaza por un azul claro institucional. Funciona bien con fotos sobre fondo
+  uniforme (blanco, gris, mesa lisa); con fondos muy recargados conviene recortar
+  primero. El deslizador de sensibilidad ajusta cuánto se considera fondo.
+
+La imagen resultante se sube a GridFS y se sirve desde `/api/images/[id]`.
+
 ## Reportes
 
-- **Excel financiero** → descarga un CSV en UTF-8 con separador `;`, listo para abrir en
-  Excel en configuración regional boliviana.
-- **PDF institucional** → abre el informe con el membrete de la UAGRM en una pestaña
-  nueva y lanza el diálogo de impresión, desde donde se guarda como PDF.
+- **Excel (.xlsx)** → libro real de Excel con el escudo de la Facultad, banda de
+  totales, tabla con cabecera institucional, filas alternadas, anchos de columna
+  ajustados, formato de moneda boliviana, filtros, paneles congelados y barras de datos
+  dentro de las celdas. Segunda hoja con la distribución por categoría. Al ser un
+  `.xlsx` nativo no hay problemas de codificación con tildes ni con la ñ.
+- **PDF institucional** → informe con membrete, tarjetas de totales y tablas alineadas;
+  se abre en una pestaña nueva y lanza el diálogo de impresión para guardarlo como PDF.
+- **LaTeX (.tex)** → código fuente completo listo para `pdflatex`, con portada,
+  resumen ejecutivo, `longtable` paginada y barras de participación por categoría. Si
+  se coloca `logo-fcee.png` junto al `.tex`, el escudo aparece en la portada.
 
 ## Scripts
 

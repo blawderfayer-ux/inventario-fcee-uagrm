@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import authConfig from './auth.config';
 import { findUserByEmail, upsertGoogleUser } from './lib/users';
+import { DEPARTMENT } from './lib/brand';
 
 /** Cada cuánto se vuelve a leer el rol desde MongoDB (ms). */
 const ROLE_REFRESH_MS = 5 * 60 * 1000;
@@ -42,7 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       session.user.id = token.uid ?? '';
       session.user.role = token.role ?? 'employee';
-      session.user.department = token.department ?? 'Sin asignar';
+      session.user.department = token.department ?? DEPARTMENT;
       session.user.name = token.name ?? session.user.email;
       return session;
     },

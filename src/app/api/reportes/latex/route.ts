@@ -1,6 +1,6 @@
 import { requireUser, route } from '@/lib/guard';
 import { buildReport, parseFilters } from '@/lib/reports';
-import { buildPrintableHtml } from '@/lib/pdf-report';
+import { buildTex } from '@/lib/latex-report';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,9 +10,14 @@ export const GET = route(async (req: Request) => {
 
   const filters = parseFilters(new URL(req.url).searchParams);
   const report = await buildReport(filters);
-  const html = await buildPrintableHtml(report);
+  const source = buildTex(report);
+  const filename = `informe-inventario-${filters.dateFrom}_${filters.dateTo}.tex`;
 
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  return new Response(source, {
+    headers: {
+      'Content-Type': 'application/x-tex; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-store',
+    },
   });
 });

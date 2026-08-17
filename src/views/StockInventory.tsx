@@ -13,6 +13,7 @@ import {
   TrashIcon,
   XIcon,
 } from '@/components/Icons';
+import ImageEditor from '@/components/ImageEditor';
 import { api } from '@/lib/api';
 import { DEFAULT_CATEGORIES, type Product, type Role } from '@/lib/types';
 
@@ -160,7 +161,6 @@ function ProductDrawer({ product, canManage, onClose, onEdit, onDelete }: Drawer
           </h2>
           <div style={{ fontSize: 12, color: 'var(--muted-fg)', marginBottom: 16 }}>
             {product.category}
-            {product.location && ` · ${product.location}`}
           </div>
           {product.description && (
             <p style={{ fontSize: 13, color: 'var(--muted-fg)', lineHeight: 1.6, margin: '0 0 20px' }}>
@@ -312,22 +312,26 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
   const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? '');
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Product>>(
     product ?? { category: categories[0] ?? 'Papelería', unit: 'unidad' }
   );
 
-  const handleFile = async (file: File) => {
+  /** Sube la imagen ya recortada y sin fondo que devuelve el editor. */
+  const uploadBlob = async (blob: Blob) => {
+    setPendingFile(null);
     setError(null);
     setUploading(true);
-    const localUrl = URL.createObjectURL(file);
+    const localUrl = URL.createObjectURL(blob);
     setPreview(localUrl);
     try {
       const body = new FormData();
-      body.append('file', file);
+      body.append('file', new File([blob], 'producto.png', { type: 'image/png' }));
       const saved = await api<{ url: string }>('/api/images', { method: 'POST', body });
       setImageUrl(saved.url);
+      setPreview(saved.url);
     } catch (err) {
       setPreview(imageUrl);
       setError(err instanceof Error ? err.message : 'No se pudo subir la imagen.');
@@ -341,7 +345,7 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
     e.preventDefault();
     setDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file?.type.startsWith('image/')) void handleFile(file);
+    if (file?.type.startsWith('image/')) setPendingFile(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -351,14 +355,12 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
     setError(null);
 
     const payload = {
-      sku: form.sku ?? '',
       name: form.name ?? '',
       category: form.category ?? categories[0] ?? 'Papelería',
       quantity: Number(form.quantity) || 0,
       unitPrice: Number(form.unitPrice) || 0,
       minStock: Number(form.minStock) || 0,
       unit: form.unit ?? 'unidad',
-      location: form.location ?? '',
       imageUrl,
       description: form.description ?? '',
     };
@@ -486,7 +488,7 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
                     Arrastre la fotografía del producto aquí
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--muted-fg)', marginTop: 4 }}>
-                    o haga clic para seleccionar · JPG, PNG, WebP · máx. 5 MB
+                    o haga clic para seleccionar · podrá recortarla y quitarle el fondo
                   </div>
                 </>
               )}
@@ -515,32 +517,32 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
               style={{ display: 'none' }}
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) void handleFile(f);
+                if (f) setPendingFile(f);
+                e.target.value = '';
               }}
             />
           </div>
 
           <div style={{ display: 'grid', gap: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <Field label="Nombre del producto" required>
-                <input
-                  required
-                  value={form.name ?? ''}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Ej: Resma de Papel A4"
-                  style={inputStyle}
-                />
-              </Field>
-              <Field label="SKU / Código" required>
-                <input
-                  required
-                  value={form.sku ?? ''}
-                  onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
-                  placeholder="Ej: PAP-A4-75"
-                  style={inputStyle}
-                />
-              </Field>
-            </div>
+            <Field label="Nombre del producto" required>
+              <input
+                required
+                value={form.name ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Ej: Resma de Papel A4"
+                style={inputStyle}
+              />
+            </Field>
+            {isEdit ? (
+              <div style={{ fontSize: 11, color: 'var(--muted-fg)' }}>
+                Código del producto:{' '}
+                <strong style={{ fontFamily: 'monospace', color: 'var(--fg)' }}>{product.sku}</strong>
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: 'var(--muted-fg)' }}>
+                El código se genera automáticamente al registrar el producto.
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <Field label="Categoría">
                 <select
@@ -597,14 +599,6 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
                 />
               </Field>
             </div>
-            <Field label="Ubicación en almacén">
-              <input
-                value={form.location ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-                placeholder="Ej: Almacén A – Estante 01"
-                style={inputStyle}
-              />
-            </Field>
             <Field label="Descripción">
               <textarea
                 rows={2}
@@ -645,6 +639,14 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
           </div>
         </form>
       </div>
+
+      {pendingFile && (
+        <ImageEditor
+          file={pendingFile}
+          onCancel={() => setPendingFile(null)}
+          onAccept={(blob) => void uploadBlob(blob)}
+        />
+      )}
     </div>
   );
 }
@@ -1079,7 +1081,7 @@ export default function StockInventory({ role }: { role: Role }) {
                     <td style={{ padding: '11px 14px' }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{p.name}</div>
                       <div style={{ fontSize: 11, color: 'var(--muted-fg)', marginTop: 1 }}>
-                        {p.location}
+                        {p.description ? p.description.slice(0, 60) : '—'}
                       </div>
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--muted-fg)' }}>

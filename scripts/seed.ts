@@ -22,97 +22,81 @@ const CATEGORIES = ['Papelería', 'Escritura', 'Impresión', 'Archivo', 'Oficina
 
 const PRODUCTS = [
   {
-    sku: 'PAP-A4-75',
     name: 'Resma de Papel A4 75g',
     category: 'Papelería',
     quantity: 48,
     unitPrice: 32.5,
     minStock: 20,
     unit: 'resma',
-    location: 'Almacén A – Estante 01',
     description:
       'Papel bond A4 75g/m², 500 hojas por resma. Para uso general en impresoras láser e inyección de tinta.',
   },
   {
-    sku: 'BOL-BIC-AZ',
     name: 'Bolígrafo Bic Azul',
     category: 'Escritura',
     quantity: 12,
     unitPrice: 1.2,
     minStock: 50,
     unit: 'unidad',
-    location: 'Almacén A – Estante 03',
     description:
       'Bolígrafo punta fina 0.7mm, tinta azul de secado rápido. Cuerpo transparente con capuchón.',
   },
   {
-    sku: 'TON-HP85A',
     name: 'Tóner HP 85A Negro',
     category: 'Impresión',
     quantity: 4,
     unitPrice: 285.0,
     minStock: 5,
     unit: 'cartucho',
-    location: 'Almacén B – Estante 02',
     description:
       'Cartucho HP 85A (CE285A), rendimiento aprox. 1600 páginas al 5% de cobertura. Compatible LaserJet P1102.',
   },
   {
-    sku: 'ARC-OFIC-A4',
     name: 'Archivador de Palanca A4',
     category: 'Archivo',
     quantity: 65,
     unitPrice: 18.5,
     minStock: 30,
     unit: 'unidad',
-    location: 'Almacén A – Estante 05',
     description:
       'Archivador de palanca lomo ancho 7.5 cm. Forro plástico azul oscuro. Capacidad 350 hojas.',
   },
   {
-    sku: 'FOL-MAN-FC',
     name: 'Folder Manila F/C',
     category: 'Papelería',
     quantity: 320,
     unitPrice: 0.45,
     minStock: 100,
     unit: 'unidad',
-    location: 'Almacén A – Estante 02',
     description: 'Folder manila tamaño oficio F/C, 150g, color natural. Resistente a la humedad.',
   },
   {
-    sku: 'USB-KNG-8G',
     name: 'USB Kingston 8GB',
     category: 'Tecnología',
     quantity: 9,
     unitPrice: 22.0,
     minStock: 10,
     unit: 'unidad',
-    location: 'Almacén B – Estante 01',
     description:
       'Kingston DataTraveler 8GB USB 2.0. Transferencia hasta 40 MB/s. Diseño compacto sin capuchón.',
   },
   {
-    sku: 'MAR-SHP-NEG',
     name: 'Marcador Permanente Negro',
     category: 'Escritura',
     quantity: 38,
     unitPrice: 8.5,
     minStock: 20,
     unit: 'unidad',
-    location: 'Almacén A – Estante 04',
     description:
       'Marcador permanente punta fina. Tinta resistente al agua, compatible con papel, plástico y cartón.',
   },
   {
-    sku: 'GRA-EST-26/6',
     name: 'Grapas Estándar 26/6',
     category: 'Oficina',
     quantity: 150,
     unitPrice: 4.8,
     minStock: 50,
     unit: 'caja',
-    location: 'Almacén A – Estante 06',
     description:
       'Caja de grapas estándar 26/6 galvanizadas. 1000 unidades por caja. Para grapadoras de escritorio.',
   },
@@ -135,15 +119,25 @@ async function main() {
       .updateOne({ name }, { $setOnInsert: { name, createdAt: now } }, { upsert: true });
   }
 
+  // Los códigos se asignan en orden: FCEE-0001, FCEE-0002, ...
   let created = 0;
+  let seq = 0;
   for (const p of PRODUCTS) {
+    seq++;
+    const sku = `FCEE-${String(seq).padStart(4, '0')}`;
     const res = await db.collection('products').updateOne(
-      { sku: p.sku },
-      { $setOnInsert: { ...p, imageUrl: '', createdAt: now, updatedAt: now } },
+      { name: p.name },
+      { $setOnInsert: { ...p, sku, imageUrl: '', createdAt: now, updatedAt: now } },
       { upsert: true }
     );
     if (res.upsertedCount) created++;
   }
+
+  // El contador queda alineado con lo que ya existe en la colección.
+  const totalProducts = await db.collection('products').countDocuments();
+  await db
+    .collection('counters')
+    .updateOne({ _id: 'sku' as never }, { $set: { seq: totalProducts } }, { upsert: true });
 
   const admins = (process.env.ADMIN_EMAILS ?? '')
     .split(',')

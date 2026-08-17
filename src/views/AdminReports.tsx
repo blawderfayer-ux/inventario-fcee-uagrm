@@ -7,31 +7,27 @@ import { DownloadIcon, FileTextIcon, FilterIcon } from '@/components/Icons';
 import { api } from '@/lib/api';
 import { DEFAULT_CATEGORIES } from '@/lib/types';
 
-const DEPARTMENTS = [
-  'Todos los departamentos',
-  'Decanato FCEE',
-  'Dpto. Contabilidad',
-  'Dpto. Economía',
-  'Dpto. Administración',
-  'Almacén Central',
-];
-
 interface ReportRow {
   sku: string;
   name: string;
   category: string;
   unit: string;
   quantity: number;
+  minStock: number;
   unitPrice: number;
   totalValue: number;
   entradas: number;
   salidas: number;
+  estado: 'Crítico' | 'Normal';
 }
 
 interface ReportData {
   rows: ReportRow[];
   totalValue: number;
   totalUnits: number;
+  totalEntradas: number;
+  totalSalidas: number;
+  criticalCount: number;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -75,7 +71,6 @@ export default function AdminReports() {
     dateFrom: firstOfMonth(),
     dateTo: today(),
     category: 'Todas',
-    department: 'Todos los departamentos',
     type: 'all',
   });
 
@@ -103,16 +98,24 @@ export default function AdminReports() {
       .catch(() => setCategories(DEFAULT_CATEGORIES));
   }, []);
 
+  const notify = (msg: string) => {
+    setGenerated(msg);
+    setTimeout(() => setGenerated(null), 5000);
+  };
+
   const handleExcel = () => {
-    setGenerated('El archivo CSV se descargó. Ábralo con Excel para ver el informe.');
+    notify('Libro de Excel (.xlsx) descargado, con hoja de detalle y resumen por categoría.');
     window.location.href = `/api/reportes/export?${query}`;
-    setTimeout(() => setGenerated(null), 4000);
   };
 
   const handlePdf = () => {
-    setGenerated('Se abrió el informe en una pestaña nueva; guárdelo como PDF desde el diálogo de impresión.');
+    notify('Informe abierto en una pestaña nueva; guárdelo como PDF desde el diálogo de impresión.');
     window.open(`/api/reportes/pdf?${query}`, '_blank', 'noopener');
-    setTimeout(() => setGenerated(null), 4000);
+  };
+
+  const handleLatex = () => {
+    notify('Código fuente LaTeX (.tex) descargado. Compílelo con pdflatex.');
+    window.location.href = `/api/reportes/latex?${query}`;
   };
 
   const rows = data?.rows ?? [];
@@ -204,18 +207,6 @@ export default function AdminReports() {
               </select>
             </FilterSection>
 
-            <FilterSection label="Departamento">
-              <select
-                value={filters.department}
-                onChange={(e) => setFilters((f) => ({ ...f, department: e.target.value }))}
-                style={{ width: '100%', height: 34, padding: '0 8px' }}
-              >
-                {DEPARTMENTS.map((d) => (
-                  <option key={d}>{d}</option>
-                ))}
-              </select>
-            </FilterSection>
-
             <FilterSection label="Tipo de movimiento">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {[
@@ -300,7 +291,7 @@ export default function AdminReports() {
                 }}
               >
                 <DownloadIcon size={14} color="#fff" />
-                Exportar Excel Financiero
+                Exportar Excel (.xlsx)
               </button>
               <button
                 onClick={handlePdf}
@@ -325,6 +316,27 @@ export default function AdminReports() {
               >
                 <FileTextIcon size={14} />
                 Generar PDF institucional
+              </button>
+              <button
+                onClick={handleLatex}
+                style={{
+                  height: 38,
+                  padding: '0 20px',
+                  borderRadius: 4,
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--fg)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontFamily: 'inherit',
+                }}
+              >
+                <FileTextIcon size={14} />
+                Código LaTeX (.tex)
               </button>
             </div>
           </div>
@@ -403,19 +415,25 @@ export default function AdminReports() {
                 <thead>
                   <tr style={{ backgroundColor: '#13294B' }}>
                     {[
-                      'SKU',
+                      'Código',
                       'Descripción',
                       'Categoría',
                       'Unidad',
                       'Stock',
                       'P. Unitario (Bs.)',
                       'Valor Total (Bs.)',
+                      'Estado',
                     ].map((h) => (
                       <th
                         key={h}
                         style={{
                           padding: '9px 14px',
-                          textAlign: h.includes('Bs.') || h === 'Stock' ? 'right' : 'left',
+                          textAlign:
+                            h.includes('Bs.') || h === 'Stock'
+                              ? 'right'
+                              : h === 'Estado'
+                                ? 'center'
+                                : 'left',
                           fontSize: 10,
                           fontWeight: 700,
                           letterSpacing: '0.08em',
@@ -435,11 +453,11 @@ export default function AdminReports() {
                       .fill(0)
                       .map((_, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                          {Array(7)
+                          {Array(8)
                             .fill(0)
                             .map((_, j) => (
                               <td key={j} style={{ padding: '10px 14px' }}>
-                                <Skeleton width={j === 1 ? 120 : 60} height={11} />
+                                <Skeleton width={j === 1 ? 120 : 55} height={11} />
                               </td>
                             ))}
                         </tr>
@@ -447,7 +465,7 @@ export default function AdminReports() {
                   ) : rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         style={{
                           padding: '28px 14px',
                           textAlign: 'center',
@@ -527,6 +545,21 @@ export default function AdminReports() {
                         >
                           {p.totalValue.toFixed(2)}
                         </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '3px 7px',
+                              borderRadius: 2,
+                              backgroundColor: p.estado === 'Crítico' ? '#fef2f2' : '#f0fdf4',
+                              color: p.estado === 'Crítico' ? '#9E1B32' : '#16a34a',
+                              border: `1px solid ${p.estado === 'Crítico' ? '#fecaca' : '#bbf7d0'}`,
+                            }}
+                          >
+                            {p.estado}
+                          </span>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -544,6 +577,11 @@ export default function AdminReports() {
                       }}
                     >
                       TOTAL INVENTARIADO
+                      {data && data.criticalCount > 0 && (
+                        <span style={{ color: '#9E1B32', marginLeft: 10, fontWeight: 600 }}>
+                          · {data.criticalCount} en stock crítico
+                        </span>
+                      )}
                     </td>
                     <td
                       style={{
@@ -557,6 +595,7 @@ export default function AdminReports() {
                     >
                       Bs. {totalValue.toFixed(2)}
                     </td>
+                    <td />
                   </tr>
                 </tfoot>
               </table>

@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { ObjectId } from 'mongodb';
 import { COLLECTIONS, collection, ensureIndexes } from '@/lib/mongodb';
-import { HttpError, requireUser, route } from '@/lib/guard';
-import { listProducts, recordMovement, toProduct, type ProductDoc } from '@/lib/inventory';
+import { requireUser, route } from '@/lib/guard';
+import {
+  listProducts,
+  nextSku,
+  recordMovement,
+  syncSkuCounter,
+  toProduct,
+  type ProductDoc,
+} from '@/lib/inventory';
 import { normalizePayload, type ProductPayload } from '@/lib/product-payload';
 
 export const runtime = 'nodejs';
@@ -20,16 +27,20 @@ export const GET = route(async (req: Request) => {
 export const POST = route(async (req: Request) => {
   const user = await requireUser(['admin', 'stockkeeper']);
   await ensureIndexes();
+  await syncSkuCounter();
 
   const data = normalizePayload((await req.json()) as ProductPayload);
   const products = await collection<ProductDoc>(COLLECTIONS.products);
 
-  if (await products.findOne({ sku: data.sku })) {
-    throw new HttpError(409, `Ya existe un producto con el SKU ${data.sku}.`);
+  // El código se asigna solo, en orden de alta. Si el contador quedara
+  // desfasado por datos cargados a mano, se salta hasta encontrar uno libre.
+  let sku = await nextSku();
+  while (await products.findOne({ sku })) {
+    sku = await nextSku();
   }
 
   const now = new Date();
-  const doc: ProductDoc = { ...data, createdAt: now, updatedAt: now };
+  const doc: ProductDoc = { ...data, sku, createdAt: now, updatedAt: now };
   const result = await products.insertOne(doc);
   const saved = { ...doc, _id: result.insertedId as ObjectId };
 

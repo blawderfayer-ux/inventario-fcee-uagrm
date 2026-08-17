@@ -37,6 +37,7 @@ export const COLLECTIONS = {
   users: 'users',
   movements: 'movements',
   categories: 'categories',
+  counters: 'counters',
 } as const;
 
 let indexesReady: Promise<void> | null = null;
