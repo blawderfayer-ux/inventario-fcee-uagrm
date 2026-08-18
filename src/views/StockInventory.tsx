@@ -15,7 +15,10 @@ import {
 } from '@/components/Icons';
 import ImageEditor from '@/components/ImageEditor';
 import { api } from '@/lib/api';
-import { DEFAULT_CATEGORIES, type Product, type Role } from '@/lib/types';
+import { DEFAULT_CATEGORIES, type CategoryItem, type Product, type Role } from '@/lib/types';
+
+const emptyCatalog = (): CategoryItem[] =>
+  DEFAULT_CATEGORIES.map((name) => ({ name, partida: '' }));
 
 function LowStockBadge() {
   return (
@@ -300,7 +303,7 @@ function Field({
 
 interface ProductFormProps {
   product?: Product | null;
-  categories: string[];
+  categories: CategoryItem[];
   onClose: () => void;
   onSaved: (p: Product) => void;
 }
@@ -316,7 +319,7 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Product>>(
-    product ?? { category: categories[0] ?? 'Papelería', unit: 'unidad' }
+    product ?? { category: categories[0]?.name ?? 'Papelería', unit: 'unidad' }
   );
 
   /** Sube la imagen ya recortada y sin fondo que devuelve el editor. */
@@ -356,7 +359,7 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
 
     const payload = {
       name: form.name ?? '',
-      category: form.category ?? categories[0] ?? 'Papelería',
+      category: form.category ?? categories[0]?.name ?? 'Papelería',
       quantity: Number(form.quantity) || 0,
       unitPrice: Number(form.unitPrice) || 0,
       minStock: Number(form.minStock) || 0,
@@ -551,7 +554,7 @@ function ProductForm({ product, categories, onClose, onSaved }: ProductFormProps
                   style={inputStyle}
                 >
                   {categories.map((c) => (
-                    <option key={c}>{c}</option>
+                    <option key={c.name}>{c.name}</option>
                   ))}
                 </select>
               </Field>
@@ -656,11 +659,12 @@ function CategoryModal({
   onClose,
   onChange,
 }: {
-  categories: string[];
+  categories: CategoryItem[];
   onClose: () => void;
-  onChange: (next: string[]) => void;
+  onChange: (next: CategoryItem[]) => void;
 }) {
   const [name, setName] = useState('');
+  const [partida, setPartida] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -670,12 +674,13 @@ function CategoryModal({
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ categories: string[] }>('/api/categories', {
+      const res = await api<{ categories: CategoryItem[] }>('/api/categories', {
         method: 'POST',
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({ name: name.trim(), partida: partida.trim() }),
       });
       onChange(res.categories);
       setName('');
+      setPartida('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear la categoría.');
     } finally {
@@ -683,11 +688,24 @@ function CategoryModal({
     }
   };
 
+  const savePartida = async (cat: string, value: string) => {
+    setError(null);
+    try {
+      const res = await api<{ categories: CategoryItem[] }>('/api/categories', {
+        method: 'PATCH',
+        body: JSON.stringify({ name: cat, partida: value.trim() }),
+      });
+      onChange(res.categories);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar la partida.');
+    }
+  };
+
   const remove = async (cat: string) => {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ categories: string[] }>(
+      const res = await api<{ categories: CategoryItem[] }>(
         `/api/categories?name=${encodeURIComponent(cat)}`,
         { method: 'DELETE' }
       );
@@ -754,12 +772,19 @@ function CategoryModal({
         <div style={{ padding: 20 }}>
           <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-          <form onSubmit={add} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <form onSubmit={add} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Nueva categoría"
               style={{ flex: 1, height: 34, padding: '0 10px' }}
+            />
+            <input
+              value={partida}
+              onChange={(e) => setPartida(e.target.value)}
+              placeholder="Partida"
+              inputMode="numeric"
+              style={{ width: 90, height: 34, padding: '0 10px' }}
             />
             <button
               type="submit"
@@ -778,14 +803,19 @@ function CategoryModal({
             </button>
           </form>
 
+          <div style={{ fontSize: 11, color: 'var(--muted-fg)', marginBottom: 14, lineHeight: 1.5 }}>
+            La <strong>partida presupuestaria</strong> (ej. 39100) es la que agrupa las
+            categorías en el Cuadro 5 de cierre de gestión. Puede editarla en cualquier momento.
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {categories.map((c) => (
               <div
-                key={c}
+                key={c.name}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
+                  gap: 8,
                   padding: '8px 10px',
                   border: '1px solid var(--border)',
                   borderRadius: 3,
@@ -793,12 +823,30 @@ function CategoryModal({
                   color: 'var(--fg)',
                 }}
               >
-                <span>{c}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>{c.name}</span>
+                <input
+                  defaultValue={c.partida}
+                  onBlur={(e) => {
+                    if (e.target.value.trim() !== c.partida) {
+                      void savePartida(c.name, e.target.value);
+                    }
+                  }}
+                  placeholder="Partida"
+                  inputMode="numeric"
+                  title="Partida presupuestaria"
+                  style={{
+                    width: 88,
+                    height: 28,
+                    padding: '0 8px',
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  }}
+                />
                 <button
-                  onClick={() => void remove(c)}
+                  onClick={() => void remove(c.name)}
                   disabled={busy}
                   title="Eliminar categoría"
-                  aria-label={`Eliminar ${c}`}
+                  aria-label={`Eliminar ${c.name}`}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -829,7 +877,7 @@ export default function StockInventory({ role }: { role: Role }) {
 
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState<CategoryItem[]>(emptyCatalog);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Todas');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -842,7 +890,7 @@ export default function StockInventory({ role }: { role: Role }) {
     try {
       const [p, c] = await Promise.all([
         api<{ products: Product[] }>('/api/products'),
-        api<{ categories: string[] }>('/api/categories'),
+        api<{ categories: CategoryItem[] }>('/api/categories'),
       ]);
       setProducts(p.products);
       setCategories(c.categories);
@@ -978,7 +1026,7 @@ export default function StockInventory({ role }: { role: Role }) {
           />
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {['Todas', ...categories].map((cat) => (
+          {['Todas', ...categories.map((c) => c.name)].map((cat) => (
             <button
               key={cat}
               onClick={() => setCategoryFilter(cat)}

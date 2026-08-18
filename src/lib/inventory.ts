@@ -3,6 +3,7 @@ import { COLLECTIONS, collection, ensureIndexes } from './mongodb';
 import { formatDateTime } from './users';
 import type {
   ActivityItem,
+  CategoryItem,
   Metrics,
   MovementAction,
   Product,
@@ -33,6 +34,8 @@ export interface MovementDoc {
   quantity: number;
   unit: string;
   unitPrice: number;
+  /** Categoría del producto al momento del movimiento. */
+  category?: string;
   userId: string;
   userName: string;
   department: string;
@@ -126,6 +129,7 @@ export async function recordMovement(input: {
     quantity: input.quantity,
     unit: input.product.unit,
     unitPrice: input.product.unitPrice,
+    category: input.product.category,
     userId: input.user.id,
     userName: input.user.name,
     department: input.user.department,
@@ -252,10 +256,17 @@ export async function weeklyFlow(): Promise<WeeklyFlowPoint[]> {
   return points;
 }
 
-export async function listCategories(): Promise<string[]> {
-  const categories = await collection<{ name: string }>(COLLECTIONS.categories);
+export interface CategoryDoc {
+  name: string;
+  /** Partida presupuestaria del clasificador de gastos (ej. 39100). */
+  partida?: string;
+  createdAt?: Date;
+}
+
+export async function listCategories(): Promise<CategoryItem[]> {
+  const categories = await collection<CategoryDoc>(COLLECTIONS.categories);
   const docs = await categories.find({}).sort({ name: 1 }).toArray();
-  return docs.map((d) => d.name);
+  return docs.map((d) => ({ name: d.name, partida: d.partida ?? '' }));
 }
 
 /**

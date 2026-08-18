@@ -4,8 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Skeleton } from '@/components/Skeleton';
 import ErrorBanner from '@/components/ErrorBanner';
 import { DownloadIcon, FileTextIcon, FilterIcon } from '@/components/Icons';
+import CuadrosAlmacenes from './CuadrosAlmacenes';
 import { api } from '@/lib/api';
-import { DEFAULT_CATEGORIES } from '@/lib/types';
+import { DEFAULT_CATEGORIES, type CategoryItem } from '@/lib/types';
+
+const emptyCatalog = (): CategoryItem[] =>
+  DEFAULT_CATEGORIES.map((name) => ({ name, partida: '' }));
 
 interface ReportRow {
   sku: string;
@@ -64,7 +68,7 @@ function today(): string {
 export default function AdminReports() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData | null>(null);
-  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState<CategoryItem[]>(emptyCatalog);
   const [error, setError] = useState<string | null>(null);
   const [generated, setGenerated] = useState<string | null>(null);
   const [filters, setFilters] = useState({
@@ -93,9 +97,9 @@ export default function AdminReports() {
   }, [load]);
 
   useEffect(() => {
-    api<{ categories: string[] }>('/api/categories')
+    api<{ categories: CategoryItem[] }>('/api/categories')
       .then((res) => setCategories(res.categories))
-      .catch(() => setCategories(DEFAULT_CATEGORIES));
+      .catch(() => setCategories(emptyCatalog()));
   }, []);
 
   const notify = (msg: string) => {
@@ -202,7 +206,7 @@ export default function AdminReports() {
               >
                 <option>Todas</option>
                 {categories.map((c) => (
-                  <option key={c}>{c}</option>
+                  <option key={c.name}>{c.name}</option>
                 ))}
               </select>
             </FilterSection>
@@ -603,6 +607,8 @@ export default function AdminReports() {
           </div>
         </div>
       </div>
+
+      <CuadrosAlmacenes />
 
       <style>{`
         @media (max-width: 900px) {

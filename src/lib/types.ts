@@ -78,11 +78,23 @@ export interface WeeklyFlowPoint {
   salidas: number;
 }
 
+export interface CategoryItem {
+  name: string;
+  /** Partida presupuestaria asociada, para el Cuadro 5 (DGCF-R1.05). */
+  partida: string;
+}
+
 export const DEFAULT_CATEGORIES = [
-  'Papelería',
-  'Escritura',
-  'Impresión',
-  'Archivo',
-  'Oficina',
-  'Tecnología',
+  'Material de Escritorio',
+  'Material de Papelería',
+  'Material de Limpieza',
+  'Material de Bioseguridad',
 ];
+
+/** Partida presupuestaria habitual de cada categoría de almacén. */
+export const DEFAULT_PARTIDAS: Record<string, string> = {
+  'Material de Limpieza': '39100',
+  'Material de Papelería': '32100',
+  'Material de Bioseguridad': '39990',
+  'Material de Escritorio': '39500',
+};

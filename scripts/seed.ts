@@ -18,12 +18,19 @@ if (!uri) {
   process.exit(1);
 }
 
-const CATEGORIES = ['Papelería', 'Escritura', 'Impresión', 'Archivo', 'Oficina', 'Tecnología'];
+// Categorías de almacén con su partida presupuestaria, según los cuadros de
+// cierre de gestión de la Facultad (DGCF-R1.05 / R1.06).
+const CATEGORIES: { name: string; partida: string }[] = [
+  { name: 'Material de Limpieza', partida: '39100' },
+  { name: 'Material de Papelería', partida: '32100' },
+  { name: 'Material de Bioseguridad', partida: '39990' },
+  { name: 'Material de Escritorio', partida: '39500' },
+];
 
 const PRODUCTS = [
   {
     name: 'Resma de Papel A4 75g',
-    category: 'Papelería',
+    category: 'Material de Papelería',
     quantity: 48,
     unitPrice: 32.5,
     minStock: 20,
@@ -33,7 +40,7 @@ const PRODUCTS = [
   },
   {
     name: 'Bolígrafo Bic Azul',
-    category: 'Escritura',
+    category: 'Material de Escritorio',
     quantity: 12,
     unitPrice: 1.2,
     minStock: 50,
@@ -43,7 +50,7 @@ const PRODUCTS = [
   },
   {
     name: 'Tóner HP 85A Negro',
-    category: 'Impresión',
+    category: 'Material de Escritorio',
     quantity: 4,
     unitPrice: 285.0,
     minStock: 5,
@@ -53,7 +60,7 @@ const PRODUCTS = [
   },
   {
     name: 'Archivador de Palanca A4',
-    category: 'Archivo',
+    category: 'Material de Escritorio',
     quantity: 65,
     unitPrice: 18.5,
     minStock: 30,
@@ -63,7 +70,7 @@ const PRODUCTS = [
   },
   {
     name: 'Folder Manila F/C',
-    category: 'Papelería',
+    category: 'Material de Papelería',
     quantity: 320,
     unitPrice: 0.45,
     minStock: 100,
@@ -72,7 +79,7 @@ const PRODUCTS = [
   },
   {
     name: 'USB Kingston 8GB',
-    category: 'Tecnología',
+    category: 'Material de Escritorio',
     quantity: 9,
     unitPrice: 22.0,
     minStock: 10,
@@ -82,7 +89,7 @@ const PRODUCTS = [
   },
   {
     name: 'Marcador Permanente Negro',
-    category: 'Escritura',
+    category: 'Material de Escritorio',
     quantity: 38,
     unitPrice: 8.5,
     minStock: 20,
@@ -91,8 +98,44 @@ const PRODUCTS = [
       'Marcador permanente punta fina. Tinta resistente al agua, compatible con papel, plástico y cartón.',
   },
   {
+    name: 'Detergente en Polvo 1kg',
+    category: 'Material de Limpieza',
+    quantity: 24,
+    unitPrice: 18.0,
+    minStock: 10,
+    unit: 'bolsa',
+    description: 'Detergente en polvo multiuso, bolsa de 1 kg. Para limpieza general de ambientes.',
+  },
+  {
+    name: 'Lavandina 2 litros',
+    category: 'Material de Limpieza',
+    quantity: 8,
+    unitPrice: 12.5,
+    minStock: 12,
+    unit: 'botella',
+    description: 'Hipoclorito de sodio al 5%, botella de 2 litros. Desinfección de superficies.',
+  },
+  {
+    name: 'Alcohol en Gel 1 litro',
+    category: 'Material de Bioseguridad',
+    quantity: 30,
+    unitPrice: 25.0,
+    minStock: 15,
+    unit: 'botella',
+    description: 'Alcohol en gel al 70%, botella de 1 litro con dosificador.',
+  },
+  {
+    name: 'Barbijo Quirúrgico Triple Capa',
+    category: 'Material de Bioseguridad',
+    quantity: 200,
+    unitPrice: 1.5,
+    minStock: 100,
+    unit: 'unidad',
+    description: 'Barbijo descartable de triple capa con elástico. Caja de 50 unidades.',
+  },
+  {
     name: 'Grapas Estándar 26/6',
-    category: 'Oficina',
+    category: 'Material de Escritorio',
     quantity: 150,
     unitPrice: 4.8,
     minStock: 50,
@@ -113,10 +156,14 @@ async function main() {
   await db.collection('users').createIndex({ email: 1 }, { unique: true });
   await db.collection('movements').createIndex({ createdAt: -1 });
 
-  for (const name of CATEGORIES) {
+  for (const { name, partida } of CATEGORIES) {
     await db
       .collection('categories')
-      .updateOne({ name }, { $setOnInsert: { name, createdAt: now } }, { upsert: true });
+      .updateOne(
+        { name },
+        { $set: { partida }, $setOnInsert: { name, createdAt: now } },
+        { upsert: true }
+      );
   }
 
   // Los códigos se asignan en orden: FCEE-0001, FCEE-0002, ...

@@ -164,6 +164,31 @@ La imagen resultante se sube a GridFS y se sirve desde `/api/images/[id]`.
   resumen ejecutivo, `longtable` paginada y barras de participación por categoría. Si
   se coloca `logo-fcee.png` junto al `.tex`, el escudo aparece en la portada.
 
+## Cuadros de cierre de gestión
+
+Además de los reportes operativos, el sistema emite los dos formularios oficiales de
+almacenes que exige la Dirección General de Contabilidad Fiscal, calculados desde los
+movimientos registrados:
+
+| Formulario | Contenido |
+| --- | --- |
+| **Cuadro 5** (DGCF-R1.05) | Resumen de Almacenes agrupado por **partida presupuestaria**: cantidad y saldo al 01/01 y al 31/12 |
+| **Cuadro 6** (DGCF-R1.06) | Detalle de Almacenes por **categoría**: saldo inicial, entradas, salidas y saldo final, en cantidades y en valores |
+
+Se descargan en Excel o se imprimen a PDF desde **Reportes → Cuadros de cierre de
+gestión**, eligiendo la gestión. Ambos documentos incluyen el membrete de la Facultad,
+las dos notas normativas y los tres bloques de firma del formulario original.
+
+**Cómo se calculan.** El saldo final parte de las existencias actuales y revierte los
+movimientos posteriores al 31/12, de modo que el cuadro sigue siendo correcto aunque se
+emita meses después del cierre. El saldo inicial se deduce por la identidad contable
+`inicial + entradas − salidas = final`, que se cumple fila por fila tanto en cantidades
+como en valores.
+
+**Partidas.** Cada categoría lleva su partida presupuestaria (39100, 32100, …), que se
+asigna desde **Inventario → Categorías**. Es lo que permite agrupar el Cuadro 5. Las
+categorías sin partida se agrupan aparte y el sistema avisa para que se complete.
+
 ## Scripts
 
 | Comando | Descripción |
