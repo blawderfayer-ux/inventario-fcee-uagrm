@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import ErrorBanner from '@/components/ErrorBanner';
 import { DownloadIcon, FileTextIcon, FilterIcon } from '@/components/Icons';
 import CuadrosAlmacenes from './CuadrosAlmacenes';
+import MantenimientoActividad from './MantenimientoActividad';
 import { api } from '@/lib/api';
 import { DEFAULT_CATEGORIES, type CategoryItem } from '@/lib/types';
 
@@ -394,6 +395,8 @@ export default function AdminReports() {
       </div>
 
       <CuadrosAlmacenes />
+
+      <MantenimientoActividad />
 
       <style>{`
         @media (max-width: 900px) {
