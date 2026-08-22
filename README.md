@@ -185,6 +185,17 @@ emita meses después del cierre. El saldo inicial se deduce por la identidad con
 `inicial + entradas − salidas = final`, que se cumple fila por fila tanto en cantidades
 como en valores.
 
+**Baja de productos.** Al dar de baja un producto **no se borra su historial**: los
+ingresos y extracciones que registró cada usuario quedan en la actividad y en los
+informes de gestiones anteriores. Para que los libros cuadren, la baja se asienta como
+una salida por el saldo que quedaba, de modo que la identidad contable cierra en cero
+para ese producto en lugar de arrastrar un saldo inicial negativo.
+
+**Movimientos antiguos.** La bitácora empezó a guardar la categoría del producto más
+tarde. Si en la base hay movimientos previos, `npm run backfill` los completa desde su
+producto sin borrar nada. Los que ya no tienen producto asociado se conservan y el
+Cuadro 6 los agrupa como «Productos dados de baja».
+
 **Partidas.** Cada categoría lleva su partida presupuestaria (39100, 32100, …), que se
 asigna desde **Inventario → Categorías**. Es lo que permite agrupar el Cuadro 5. Las
 categorías sin partida se agrupan aparte y el sistema avisa para que se complete.
@@ -198,6 +209,7 @@ categorías sin partida se agrupan aparte y el sistema avisa para que se complet
 | `npm run start` | Servir la compilación de producción |
 | `npm run typecheck` | Verificación de tipos |
 | `npm run seed` | Cargar categorías y productos de ejemplo |
+| `npm run backfill` | Completar la categoría en movimientos antiguos |
 
 ## Despliegue
 

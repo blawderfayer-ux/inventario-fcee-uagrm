@@ -64,23 +64,34 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
 });
 
 /**
- * Elimina el producto junto con su historial de movimientos.
+ * Da de baja el producto conservando íntegra su bitácora.
  *
- * La bitácora se borra a propósito: un movimiento sin producto deja de tener
- * categoría, y los cuadros de cierre lo arrastrarían como «Sin categoría» con
- * saldos iniciales negativos. Para conservar el historial, marque el producto
- * con stock 0 en lugar de eliminarlo.
+ * El historial no se toca: quien registró un ingreso o una extracción tiene
+ * derecho a que su trabajo quede asentado, y borrarlo dejaría los informes de
+ * gestiones anteriores sin respaldo.
+ *
+ * Para que los libros sigan cuadrando, la baja se asienta como una salida por
+ * el saldo que quedaba. Así la identidad «inicial + entradas − salidas = final»
+ * cierra en cero para ese producto, en lugar de arrastrar un saldo inicial
+ * negativo como pasaría si su stock simplemente desapareciera.
  */
 export const DELETE = route(async (_req: Request, ctx: Ctx) => {
-  await requireUser(['admin', 'stockkeeper']);
+  const user = await requireUser(['admin', 'stockkeeper']);
   const { id } = await ctx.params;
   const { products, doc } = await findOr404(id);
 
-  const movements = await collection(COLLECTIONS.movements);
-  const { deletedCount } = await movements.deleteMany({ productId: doc._id });
+  if (doc.quantity > 0) {
+    await recordMovement({
+      product: doc,
+      action: 'extracción',
+      quantity: doc.quantity,
+      user,
+      reason: 'Baja del producto del inventario',
+    });
+  }
 
   await products.deleteOne({ _id: doc._id });
   await deleteImageByUrl(doc.imageUrl);
 
-  return NextResponse.json({ ok: true, movimientosEliminados: deletedCount ?? 0 });
+  return NextResponse.json({ ok: true, bajaRegistrada: doc.quantity });
 });

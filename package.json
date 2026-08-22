@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "backfill": "tsx scripts/backfill.ts"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

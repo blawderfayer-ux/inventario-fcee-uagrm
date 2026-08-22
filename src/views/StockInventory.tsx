@@ -259,7 +259,7 @@ function ProductDrawer({ product, canManage, onClose, onEdit, onDelete }: Drawer
                 }}
               >
                 <TrashIcon size={14} color="#fff" />
-                Eliminar del inventario
+                Dar de baja del inventario
               </button>
             </div>
           )}
@@ -925,28 +925,31 @@ export default function StockInventory({ role }: { role: Role }) {
 
   const handleDelete = async (id: string) => {
     const target = products.find((p) => p.id === id);
+    const stock = target?.quantity ?? 0;
     const ok = confirm(
-      `¿Eliminar "${target?.name ?? 'este producto'}" del inventario?\n\n` +
-        'Se borrarán también sus movimientos (ingresos y extracciones), por lo que ' +
-        'desaparecerá de la actividad reciente y de los cuadros de cierre.\n\n' +
-        'Si solo quiere darlo de baja conservando el historial, edítelo y deje la ' +
-        'cantidad en 0 en vez de eliminarlo.'
+      `¿Dar de baja "${target?.name ?? 'este producto'}" del inventario?\n\n` +
+        'El historial de movimientos NO se borra: los ingresos y extracciones que ' +
+        'registró cada usuario quedan en la actividad y en los informes.\n\n' +
+        (stock > 0
+          ? `Se asentará una salida por las ${stock} unidad(es) que quedan en stock, ` +
+            'para que los cuadros de cierre sigan cuadrando.'
+          : 'El producto no tiene stock, así que no se genera ningún movimiento nuevo.')
     );
     if (!ok) return;
     try {
-      const res = await api<{ movimientosEliminados: number }>(`/api/products/${id}`, {
+      const res = await api<{ bajaRegistrada: number }>(`/api/products/${id}`, {
         method: 'DELETE',
       });
       setProducts((prev) => prev.filter((p) => p.id !== id));
       setSelectedProduct(null);
-      if (res.movimientosEliminados > 0) {
-        setNotice(
-          `Producto eliminado junto con ${res.movimientosEliminados} movimiento(s) de su historial.`
-        );
-        setTimeout(() => setNotice(null), 6000);
-      }
+      setNotice(
+        res.bajaRegistrada > 0
+          ? `Producto dado de baja. Se registró la salida de ${res.bajaRegistrada} unidad(es); su historial se conserva.`
+          : 'Producto dado de baja. Su historial de movimientos se conserva.'
+      );
+      setTimeout(() => setNotice(null), 6000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo eliminar el producto.');
+      setError(err instanceof Error ? err.message : 'No se pudo dar de baja el producto.');
     }
   };
 

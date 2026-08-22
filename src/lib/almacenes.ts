@@ -58,6 +58,13 @@ export interface AlmacenesReport {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * Etiqueta para movimientos antiguos cuyo producto ya no existe y que se
+ * registraron antes de que la bitácora guardara la categoría. No se descartan:
+ * la actividad de cada usuario se conserva y se muestra agrupada aquí.
+ */
+const BAJA_LABEL = 'Productos dados de baja';
+
 export function parseYear(params: URLSearchParams): number {
   const raw = Number(params.get('year'));
   const current = new Date().getFullYear();
@@ -96,7 +103,7 @@ export async function buildAlmacenesReport(year: number): Promise<AlmacenesRepor
   // Se revierten los movimientos posteriores al cierre para volver al 31/12.
   const after = await movements.find({ createdAt: { $gt: end } }).toArray();
   for (const m of after) {
-    const cat = m.category ?? categoryOf.get(m.productId.toString()) ?? 'Sin categoría';
+    const cat = m.category ?? categoryOf.get(m.productId.toString()) ?? BAJA_LABEL;
     const sign = m.action === 'ingreso' ? -1 : m.action === 'extracción' ? 1 : 0;
     if (sign === 0) continue;
     qtyFinal.set(cat, (qtyFinal.get(cat) ?? 0) + sign * m.quantity);
@@ -114,7 +121,7 @@ export async function buildAlmacenesReport(year: number): Promise<AlmacenesRepor
   const valOut = new Map<string, number>();
 
   for (const m of inPeriod) {
-    const cat = m.category ?? categoryOf.get(m.productId.toString()) ?? 'Sin categoría';
+    const cat = m.category ?? categoryOf.get(m.productId.toString()) ?? BAJA_LABEL;
     const amount = m.quantity * m.unitPrice;
     if (m.action === 'ingreso') {
       qtyIn.set(cat, (qtyIn.get(cat) ?? 0) + m.quantity);
