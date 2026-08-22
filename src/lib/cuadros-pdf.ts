@@ -7,18 +7,23 @@ function esc(v: string): string {
 }
 
 /** Formato boliviano: punto para miles, coma para decimales. */
-function bs(n: number): string {
+function fmt(n: number): string {
   return n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** En el cuerpo del cuadro el cero se escribe con guion, como en el formulario. */
+function bs(n: number): string {
+  return n === 0 ? '-' : fmt(n);
+}
+
 function qty(n: number): string {
-  return n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n === 0 ? '-' : fmt(n);
 }
 
 /** Bloque de tres firmas, tal como lo exige el formulario oficial. */
 function firmas(): string {
-  const blocks = [
-    ['Firma Contabilidad', ''],
+  const blocks: [string, string][] = [
+    ['Firma Contabilidad', 'Contaduría F.C.E.E.'],
     ['Firma DGAA - DAF', 'Jefe Administrativo y Financiero'],
     ['Firma Responsable', 'Encargado de Almacén Facultativo'],
   ];
@@ -27,8 +32,7 @@ function firmas(): string {
       ([title, sub]) => `<div class="firma">
         <div class="linea"></div>
         <div class="ftitle">${esc(title)}</div>
-        ${sub ? `<div class="fsub">${esc(sub)}</div>` : ''}
-        <div class="fsub">${esc(BRAND.faculty)}</div>
+        <div class="fsub">${esc(sub)}</div>
         <div class="fsub">U.A.G.R.M.</div>
       </div>`
     )
@@ -59,7 +63,8 @@ function encabezado(logo: string | null, codigo: string, titulo: string, year: n
     <div class="cod">${esc(codigo)}</div>
     <div class="ver">Versión 01</div>
   </div>
-</header>`;
+</header>
+<div class="divisor"></div>`;
 }
 
 /** Documento imprimible con el Cuadro 5 y el Cuadro 6, una hoja cada uno. */
@@ -111,52 +116,76 @@ export async function buildCuadrosHtml(report: AlmacenesReport): Promise<string>
 <meta charset="utf-8">
 <title>Cuadros de Almacenes ${report.year} — ${esc(BRAND.short)}</title>
 <style>
-  @page { size: A4 landscape; margin: 12mm 10mm; }
+  @page { size: A4 landscape; margin: 12mm 11mm; }
   * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #000; margin: 0;
-         font-size: 10px; padding: 0 12px 20px; }
+
+  body {
+    font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+    color: #000; margin: 0; padding: 0 12px 22px;
+    font-size: 9.5px; line-height: 1.35;
+    -webkit-font-smoothing: antialiased;
+  }
   @media print { body { padding: 0; } .hint { display: none !important; } }
 
-  .hint { background: #13294B; color: #fff; padding: 10px 14px; font-size: 12px;
-          text-align: center; margin: 0 -12px 14px; }
+  .hint { background: #13294B; color: #fff; padding: 9px 14px; font-size: 11.5px;
+          text-align: center; margin: 0 -12px 16px; letter-spacing: .01em; }
 
-  .hoja { page-break-after: always; margin-bottom: 34px; }
+  .hoja { page-break-after: always; margin-bottom: 38px; }
   .hoja:last-child { page-break-after: auto; margin-bottom: 0; }
   @media print { .hoja { margin-bottom: 0; } }
 
-  header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
-  .hleft { width: 90px; }
-  .hleft img { height: 60px; width: auto; }
+  /* ---------------- Membrete ---------------- */
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 3px; }
+  .hleft { width: 78px; flex-shrink: 0; }
+  .hleft img { height: 56px; width: auto; display: block; }
   .hcenter { flex: 1; text-align: center; }
-  .hright { width: 110px; text-align: right; font-weight: bold; font-size: 11px; }
-  .ver { font-weight: normal; }
-  .entidad { font-size: 12px; font-weight: bold; }
-  .entidad2 { font-size: 11px; }
-  .titulo { font-size: 12px; font-weight: bold; text-decoration: underline; margin-top: 6px; }
-  .fecha { font-size: 10px; }
+  .hright { width: 96px; flex-shrink: 0; text-align: right; }
+  .cod { font-size: 10px; font-weight: bold; letter-spacing: .02em; }
+  .ver { font-size: 9.5px; }
+  .entidad { font-size: 11.5px; font-weight: bold; letter-spacing: .04em;
+             text-transform: uppercase; }
+  .entidad2 { font-size: 10.5px; margin-top: 1px; }
+  .titulo { font-size: 11.5px; font-weight: bold; text-decoration: underline;
+            text-underline-offset: 2px; margin-top: 7px; letter-spacing: .02em; }
+  .fecha { font-size: 9.5px; margin-top: 2px; }
 
-  table { width: 100%; border-collapse: collapse; }
-  th, td { border: 1px solid #000; padding: 4px 6px; }
-  thead th { background: #DCE6F1; font-size: 9.5px; text-align: center; font-weight: bold; }
-  td { font-size: 10px; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .divisor { border-bottom: 2px solid #13294B; margin: 9px 0 12px; }
+
+  /* ---------------- Tabla ---------------- */
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 0.75pt solid #000; padding: 4px 6px; vertical-align: middle; }
+
+  thead th {
+    background: #DCE6F1; font-size: 8.5px; font-weight: bold;
+    text-align: center; line-height: 1.25; letter-spacing: .01em;
+  }
+  tbody td { font-size: 9.5px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums;
+           white-space: nowrap; letter-spacing: -.1px; }
   td.c { text-align: center; }
-  td.mono { font-family: 'Courier New', monospace; }
+  td.mono { font-family: 'Consolas', 'Courier New', monospace; font-size: 9.5px;
+            letter-spacing: .02em; }
+  tbody tr:nth-child(even) td { background: #FAFCFF; }
   .sinp { color: #9E1B32; font-style: italic; font-family: Arial, sans-serif; }
-  tfoot td { font-weight: bold; background: #F2F2F2; }
-  tfoot td.lbl { text-align: center; }
 
-  .nota { margin-top: 12px; font-size: 9.5px; text-align: justify; }
-  .nota b { font-weight: bold; }
-  .aviso { margin-top: 10px; font-size: 9px; color: #9E1B32; border: 1px solid #9E1B32;
-           padding: 6px 8px; }
+  tfoot td { font-weight: bold; background: #E9EEF6; font-size: 9.5px;
+             border-top: 1.2pt solid #000; }
+  tfoot td.lbl { text-align: center; letter-spacing: .06em; }
 
-  .firmas { display: flex; justify-content: space-around; gap: 20px;
-            margin-top: 42px; margin-bottom: 14px; }
-  .firma { flex: 1; text-align: center; }
-  .linea { border-top: 1px solid #000; margin-bottom: 4px; }
-  .ftitle { font-size: 10px; font-weight: bold; }
-  .fsub { font-size: 8px; }
+  /* ---------------- Notas y firmas ---------------- */
+  .nota { margin-top: 11px; font-size: 8.5px; text-align: justify; line-height: 1.45;
+          color: #1a1a1a; }
+  .nota b { font-weight: bold; color: #000; }
+  .aviso { margin-top: 9px; font-size: 8.5px; color: #9E1B32;
+           border-left: 2.5pt solid #9E1B32; background: #FDF6F7;
+           padding: 6px 9px; line-height: 1.45; }
+
+  .firmas { display: flex; justify-content: space-between; gap: 34px;
+            margin: 52px auto 16px; max-width: 88%; }
+  .firma { flex: 1 1 0; text-align: center; min-width: 0; }
+  .linea { border-top: 0.9pt solid #000; margin-bottom: 5px; }
+  .ftitle { font-size: 9.5px; font-weight: bold; letter-spacing: .01em; }
+  .fsub { font-size: 8px; color: #333; margin-top: 1px; }
 </style>
 </head>
 <body>
@@ -193,10 +222,10 @@ export async function buildCuadrosHtml(report: AlmacenesReport): Promise<string>
     <tfoot>
       <tr>
         <td class="lbl" colspan="2">TOTAL</td>
-        <td class="num">${qty(t.qtyInitial)}</td>
-        <td class="num">${bs(t.valInitial)}</td>
-        <td class="num">${qty(t.qtyFinal)}</td>
-        <td class="num">${bs(t.valFinal)}</td>
+        <td class="num">${fmt(t.qtyInitial)}</td>
+        <td class="num">${fmt(t.valInitial)}</td>
+        <td class="num">${fmt(t.qtyFinal)}</td>
+        <td class="num">${fmt(t.valFinal)}</td>
       </tr>
     </tfoot>
   </table>
@@ -237,14 +266,14 @@ export async function buildCuadrosHtml(report: AlmacenesReport): Promise<string>
     <tfoot>
       <tr>
         <td class="lbl" colspan="4">TOTAL</td>
-        <td class="num">${qty(t.qtyInitial)}</td>
-        <td class="num">${qty(t.qtyIn)}</td>
-        <td class="num">${qty(t.qtyOut)}</td>
-        <td class="num">${qty(t.qtyFinal)}</td>
-        <td class="num">${bs(t.valInitial)}</td>
-        <td class="num">${bs(t.valIn)}</td>
-        <td class="num">${bs(t.valOut)}</td>
-        <td class="num">${bs(t.valFinal)}</td>
+        <td class="num">${fmt(t.qtyInitial)}</td>
+        <td class="num">${fmt(t.qtyIn)}</td>
+        <td class="num">${fmt(t.qtyOut)}</td>
+        <td class="num">${fmt(t.qtyFinal)}</td>
+        <td class="num">${fmt(t.valInitial)}</td>
+        <td class="num">${fmt(t.valIn)}</td>
+        <td class="num">${fmt(t.valOut)}</td>
+        <td class="num">${fmt(t.valFinal)}</td>
       </tr>
     </tfoot>
   </table>

@@ -885,6 +885,7 @@ export default function StockInventory({ role }: { role: Role }) {
   const [showCategories, setShowCategories] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -923,11 +924,27 @@ export default function StockInventory({ role }: { role: Role }) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este producto del inventario?')) return;
+    const target = products.find((p) => p.id === id);
+    const ok = confirm(
+      `¿Eliminar "${target?.name ?? 'este producto'}" del inventario?\n\n` +
+        'Se borrarán también sus movimientos (ingresos y extracciones), por lo que ' +
+        'desaparecerá de la actividad reciente y de los cuadros de cierre.\n\n' +
+        'Si solo quiere darlo de baja conservando el historial, edítelo y deje la ' +
+        'cantidad en 0 en vez de eliminarlo.'
+    );
+    if (!ok) return;
     try {
-      await api(`/api/products/${id}`, { method: 'DELETE' });
+      const res = await api<{ movimientosEliminados: number }>(`/api/products/${id}`, {
+        method: 'DELETE',
+      });
       setProducts((prev) => prev.filter((p) => p.id !== id));
       setSelectedProduct(null);
+      if (res.movimientosEliminados > 0) {
+        setNotice(
+          `Producto eliminado junto con ${res.movimientosEliminados} movimiento(s) de su historial.`
+        );
+        setTimeout(() => setNotice(null), 6000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo eliminar el producto.');
     }
@@ -989,6 +1006,24 @@ export default function StockInventory({ role }: { role: Role }) {
       </div>
 
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+      {notice && (
+        <div
+          className="fade-in"
+          style={{
+            padding: '9px 13px',
+            backgroundColor: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: 4,
+            marginBottom: 16,
+            fontSize: 12,
+            color: '#166534',
+            fontWeight: 500,
+          }}
+        >
+          ✓ {notice}
+        </div>
+      )}
 
       {/* Filters */}
       <div

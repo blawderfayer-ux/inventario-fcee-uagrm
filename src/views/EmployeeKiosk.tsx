@@ -1,15 +1,25 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import ThemeToggleButton from '@/components/ThemeToggleButton';
 import Logo from '@/components/Logo';
 import ErrorBanner from '@/components/ErrorBanner';
-import { CheckIcon, HomeIcon, LogOutIcon, MinusIcon, PlusIcon, SearchIcon } from '@/components/Icons';
+import { SkeletonCard } from '@/components/Skeleton';
+import {
+  CheckIcon,
+  HomeIcon,
+  ImageIcon,
+  LogOutIcon,
+  MinusIcon,
+  PlusIcon,
+  SearchIcon,
+  XIcon,
+} from '@/components/Icons';
 import { api } from '@/lib/api';
 import type { Product } from '@/lib/types';
 
-type KioskState = 'idle' | 'searching' | 'found' | 'not-found' | 'confirming' | 'success';
+type KioskState = 'browse' | 'selected' | 'confirming' | 'success';
 
 interface Props {
   user: { name: string; department: string };
@@ -17,81 +27,208 @@ interface Props {
   onLogout: () => Promise<void>;
 }
 
+/** Quita tildes y pasa a minúsculas para que "toner" encuentre "Tóner". */
+function fold(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
+/** Resalta en negrita el tramo que coincide con lo escrito. */
+function Highlight({ text, term }: { text: string; term: string }) {
+  if (!term) return <>{text}</>;
+  const i = fold(text).indexOf(fold(term));
+  if (i < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, i)}
+      <mark
+        style={{
+          background: 'rgba(158,27,50,0.16)',
+          color: 'inherit',
+          padding: '0 1px',
+          borderRadius: 2,
+          fontWeight: 700,
+        }}
+      >
+        {text.slice(i, i + term.length)}
+      </mark>
+      {text.slice(i + term.length)}
+    </>
+  );
+}
+
+function Thumb({ src, alt, size }: { src: string; alt: string; size: number }) {
+  const box: React.CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: 4,
+    flexShrink: 0,
+    backgroundColor: 'var(--muted)',
+    overflow: 'hidden',
+  };
+  if (!src) {
+    return (
+      <div
+        style={{
+          ...box,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--muted-fg)',
+        }}
+      >
+        <ImageIcon size={Math.round(size / 2.6)} />
+      </div>
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element -- las fotos vienen de GridFS.
+  return <img src={src} alt={alt} style={{ ...box, objectFit: 'cover' }} />;
+}
+
+function StockTag({ product }: { product: Product }) {
+  const out = product.quantity === 0;
+  const low = !out && product.quantity <= product.minStock;
+  const [bg, fg, border, label] = out
+    ? ['#fef2f2', '#9E1B32', '#fecaca', 'Agotado']
+    : low
+      ? ['#fffbeb', '#92400e', '#fde68a', 'Stock bajo']
+      : ['#f0fdf4', '#16a34a', '#bbf7d0', 'Disponible'];
+
+  return (
+    <span
+      style={{
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: '0.05em',
+        textTransform: 'uppercase',
+        padding: '2px 6px',
+        borderRadius: 2,
+        backgroundColor: bg,
+        color: fg,
+        border: `1px solid ${border}`,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
 export default function EmployeeKiosk({ user, canReturnToPanel, onLogout }: Props) {
+  const [catalog, setCatalog] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [result, setResult] = useState<Product | null>(null);
+  const [selected, setSelected] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [reason, setReason] = useState('');
-  const [state, setState] = useState<KioskState>('idle');
+  const [state, setState] = useState<KioskState>('browse');
   const [error, setError] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState<{ quantity: number; unit: string; name: string; reason: string } | null>(
-    null
-  );
+  const [confirmed, setConfirmed] = useState<{
+    quantity: number;
+    unit: string;
+    name: string;
+    reason: string;
+  } | null>(null);
+
   const searchRef = useRef<HTMLInputElement>(null);
   const [, startTransition] = useTransition();
 
-  useEffect(() => {
-    searchRef.current?.focus();
+  const load = useCallback(async () => {
+    try {
+      const res = await api<{ products: Product[] }>('/api/products');
+      setCatalog(res.products);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleReset = () => {
-    setQuery('');
-    setResult(null);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    if (state === 'browse') searchRef.current?.focus();
+  }, [state]);
+
+  // Filtrado instantáneo mientras se escribe: los que empiezan con el término
+  // primero, luego los que lo contienen en cualquier parte.
+  const results = useMemo(() => {
+    const term = fold(query.trim());
+    if (!term) return catalog;
+    const scored = catalog
+      .map((p) => {
+        const name = fold(p.name);
+        const sku = fold(p.sku);
+        const cat = fold(p.category);
+        if (name.startsWith(term) || sku.startsWith(term)) return { p, rank: 0 };
+        if (name.includes(term) || sku.includes(term)) return { p, rank: 1 };
+        if (cat.includes(term)) return { p, rank: 2 };
+        return null;
+      })
+      .filter((x): x is { p: Product; rank: number } => x !== null);
+    scored.sort((a, b) => a.rank - b.rank || a.p.name.localeCompare(b.p.name, 'es'));
+    return scored.map((x) => x.p);
+  }, [catalog, query]);
+
+  const backToBrowse = () => {
+    setSelected(null);
     setQuantity(1);
     setReason('');
     setError(null);
-    setConfirmed(null);
-    setState('idle');
-    setTimeout(() => searchRef.current?.focus(), 100);
+    setState('browse');
   };
 
-  const handleSearch = async () => {
-    if (!query.trim()) return;
-    setState('searching');
+  const handleReset = () => {
+    setQuery('');
+    setConfirmed(null);
+    backToBrowse();
+    void load();
+  };
+
+  const pick = (p: Product) => {
+    if (p.quantity === 0) return;
+    setSelected(p);
+    setQuantity(1);
+    setReason('');
     setError(null);
-    try {
-      const res = await api<{ products: Product[] }>(
-        `/api/products?search=${encodeURIComponent(query.trim())}`
-      );
-      const found = res.products[0];
-      if (found) {
-        setResult(found);
-        setQuantity(1);
-        setState('found');
-      } else {
-        setResult(null);
-        setState('not-found');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo buscar el material.');
-      setState('idle');
-    }
+    setState('selected');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') void handleSearch();
+    if (e.key === 'Enter' && results.length > 0) pick(results[0]);
+    if (e.key === 'Escape') setQuery('');
   };
 
   const handleRegister = async () => {
-    if (!result || !reason.trim()) return;
+    if (!selected || !reason.trim()) return;
     setState('confirming');
     setError(null);
     try {
-      await api(`/api/products/${result.id}/extraer`, {
+      await api(`/api/products/${selected.id}/extraer`, {
         method: 'POST',
         body: JSON.stringify({ quantity, reason: reason.trim() }),
       });
-      setConfirmed({ quantity, unit: result.unit, name: result.name, reason: reason.trim() });
+      setConfirmed({
+        quantity,
+        unit: selected.unit,
+        name: selected.name,
+        reason: reason.trim(),
+      });
       setState('success');
       setTimeout(handleReset, 3200);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar la extracción.');
-      setState('found');
+      setState('selected');
     }
   };
 
   const canRegister =
-    !!result && quantity >= 1 && quantity <= result.quantity && reason.trim().length > 0;
+    !!selected && quantity >= 1 && quantity <= selected.quantity && reason.trim().length > 0;
 
   return (
     <div
@@ -102,7 +239,7 @@ export default function EmployeeKiosk({ user, canReturnToPanel, onLogout }: Prop
         flexDirection: 'column',
       }}
     >
-      {/* Kiosk header */}
+      {/* Cabecera */}
       <div
         style={{
           height: 52,
@@ -167,19 +304,18 @@ export default function EmployeeKiosk({ user, canReturnToPanel, onLogout }: Prop
         </div>
       </div>
 
-      {/* Main kiosk content */}
       <div
         style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          padding: '40px 16px 24px',
-          maxWidth: 600,
+          padding: '24px 16px 32px',
+          maxWidth: 880,
           margin: '0 auto',
           width: '100%',
         }}
       >
+        {/* ---------- Confirmación ---------- */}
         {state === 'success' && confirmed && (
           <div
             className="fade-in"
@@ -220,7 +356,9 @@ export default function EmployeeKiosk({ user, canReturnToPanel, onLogout }: Prop
                 Motivo: {confirmed.reason}
               </div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted-fg)' }}>Reiniciando en unos segundos...</div>
+            <div style={{ fontSize: 12, color: 'var(--muted-fg)' }}>
+              Volviendo al catálogo en unos segundos...
+            </div>
           </div>
         )}
 
@@ -246,365 +384,432 @@ export default function EmployeeKiosk({ user, canReturnToPanel, onLogout }: Prop
           </div>
         )}
 
-        {state !== 'success' && state !== 'confirming' && (
+        {/* ---------- Catálogo con búsqueda en vivo ---------- */}
+        {state === 'browse' && (
           <>
-            <div style={{ width: '100%', marginBottom: 32 }}>
-              <div
+            <div style={{ position: 'relative', marginBottom: 8 }}>
+              <span
                 style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
+                  position: 'absolute',
+                  left: 16,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
                   color: 'var(--muted-fg)',
-                  textAlign: 'center',
-                  marginBottom: 16,
+                  display: 'flex',
+                  pointerEvents: 'none',
                 }}
               >
-                Buscar material
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <span
-                    style={{
-                      position: 'absolute',
-                      left: 16,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: 'var(--muted-fg)',
-                      display: 'flex',
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    <SearchIcon size={20} />
-                  </span>
-                  <input
-                    ref={searchRef}
-                    value={query}
-                    onChange={(e) => {
-                      setQuery(e.target.value);
-                      if (state !== 'idle') setState('idle');
-                    }}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Nombre del material o código SKU..."
-                    style={{
-                      width: '100%',
-                      height: 56,
-                      paddingLeft: 48,
-                      paddingRight: 16,
-                      fontSize: 16,
-                      borderRadius: 4,
-                      border: '2px solid var(--border)',
-                      outline: 'none',
-                      backgroundColor: 'var(--card)',
-                      color: 'var(--fg)',
-                      fontFamily: 'Inter, sans-serif',
-                      transition: 'border-color 0.15s ease',
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = '#13294B')}
-                    onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
-                  />
-                </div>
+                <SearchIcon size={19} />
+              </span>
+              <input
+                ref={searchRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Escriba para filtrar el material..."
+                aria-label="Filtrar material"
+                style={{
+                  width: '100%',
+                  height: 54,
+                  paddingLeft: 48,
+                  paddingRight: query ? 46 : 16,
+                  fontSize: 16,
+                  borderRadius: 4,
+                  border: '2px solid var(--border)',
+                  outline: 'none',
+                  backgroundColor: 'var(--card)',
+                  color: 'var(--fg)',
+                  fontFamily: 'Inter, sans-serif',
+                  transition: 'border-color 0.15s ease',
+                }}
+                onFocus={(e) => (e.target.style.borderColor = '#13294B')}
+                onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
+              />
+              {query && (
                 <button
-                  className="btn-primary"
-                  onClick={() => void handleSearch()}
-                  disabled={state === 'searching'}
+                  onClick={() => {
+                    setQuery('');
+                    searchRef.current?.focus();
+                  }}
+                  aria-label="Limpiar búsqueda"
                   style={{
-                    height: 56,
-                    padding: '0 20px',
-                    fontSize: 14,
-                    flexShrink: 0,
-                    borderRadius: 4,
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'var(--muted)',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: 26,
+                    height: 26,
+                    cursor: 'pointer',
+                    color: 'var(--muted-fg)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
-                  {state === 'searching' ? 'Buscando...' : 'Buscar'}
+                  <XIcon size={14} />
                 </button>
-              </div>
-
-              {state === 'not-found' && (
-                <div
-                  className="fade-in"
-                  style={{
-                    marginTop: 12,
-                    padding: '10px 14px',
-                    backgroundColor: '#fef2f2',
-                    border: '1px solid #fecaca',
-                    borderRadius: 4,
-                    fontSize: 13,
-                    color: '#9E1B32',
-                    textAlign: 'center',
-                  }}
-                >
-                  No se encontró ningún producto con &quot;{query}&quot;
-                </div>
               )}
             </div>
 
-            <div style={{ width: '100%' }}>
-              <ErrorBanner message={error} onDismiss={() => setError(null)} />
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 10,
+                marginBottom: 14,
+                fontSize: 12,
+                color: 'var(--muted-fg)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span>
+                {loading
+                  ? 'Cargando catálogo...'
+                  : query
+                    ? `${results.length} de ${catalog.length} materiales`
+                    : `${catalog.length} materiales disponibles`}
+              </span>
+              <span>Toque un material para retirarlo</span>
             </div>
 
-            {result && state === 'found' && (
-              <div className="fade-in" style={{ width: '100%' }}>
-                <div
-                  style={{
-                    backgroundColor: 'var(--card)',
-                    border: '2px solid #13294B',
-                    borderRadius: 4,
-                    overflow: 'hidden',
-                    marginBottom: 24,
-                  }}
-                >
-                  {result.imageUrl && (
-                    <div style={{ height: 200, backgroundColor: 'var(--muted)' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={result.imageUrl}
-                        alt={result.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    </div>
-                  )}
-                  <div style={{ padding: '16px 20px' }}>
-                    <div
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.1em',
-                        color: 'var(--muted-fg)',
-                        marginBottom: 4,
-                      }}
-                    >
-                      {result.category} · {result.sku}
-                    </div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--fg)', marginBottom: 8 }}>
-                      {result.name}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span
-                        style={{
-                          fontSize: 28,
-                          fontWeight: 800,
-                          color: result.quantity <= result.minStock ? '#9E1B32' : '#16a34a',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {result.quantity}
-                      </span>
-                      <span style={{ fontSize: 14, color: 'var(--muted-fg)', fontWeight: 500 }}>
-                        {result.unit}s disponibles
-                      </span>
-                      {result.quantity <= result.minStock && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '3px 7px',
-                            borderRadius: 2,
-                            backgroundColor: '#fef2f2',
-                            color: '#9E1B32',
-                            border: '1px solid #fecaca',
-                          }}
-                        >
-                          STOCK BAJO
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+            <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-                {result.quantity === 0 ? (
-                  <div
-                    style={{
-                      padding: '14px 16px',
-                      backgroundColor: '#fef2f2',
-                      border: '1px solid #fecaca',
-                      borderRadius: 4,
-                      fontSize: 13,
-                      color: '#9E1B32',
-                      textAlign: 'center',
-                      marginBottom: 16,
-                    }}
-                  >
-                    Este material está agotado. Comuníquese con el Almacén Central.
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ marginBottom: 16 }}>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.08em',
-                          color: 'var(--muted-fg)',
-                          marginBottom: 10,
-                          textAlign: 'center',
-                        }}
-                      >
-                        Cantidad a retirar
-                      </div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 0,
-                        }}
-                      >
-                        <button
-                          onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                          disabled={quantity <= 1}
-                          aria-label="Disminuir cantidad"
-                          style={{
-                            width: 64,
-                            height: 64,
-                            borderRadius: '4px 0 0 4px',
-                            border: '2px solid var(--border)',
-                            borderRight: 'none',
-                            backgroundColor: quantity <= 1 ? 'var(--muted)' : 'var(--card)',
-                            cursor: quantity <= 1 ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--fg)',
-                            transition: 'background-color 0.1s ease',
-                          }}
-                        >
-                          <MinusIcon size={22} />
-                        </button>
-                        <input
-                          type="number"
-                          min={1}
-                          max={result.quantity}
-                          value={quantity}
-                          aria-label="Cantidad"
-                          onChange={(e) =>
-                            setQuantity(Math.max(1, Math.min(result.quantity, Number(e.target.value))))
-                          }
-                          style={{
-                            width: 100,
-                            height: 64,
-                            textAlign: 'center',
-                            fontSize: 28,
-                            fontWeight: 800,
-                            borderRadius: 0,
-                            border: '2px solid var(--border)',
-                            fontVariantNumeric: 'tabular-nums',
-                            backgroundColor: 'var(--card)',
-                            color: 'var(--fg)',
-                            outline: 'none',
-                          }}
-                        />
-                        <button
-                          onClick={() => setQuantity((q) => Math.min(result.quantity, q + 1))}
-                          disabled={quantity >= result.quantity}
-                          aria-label="Aumentar cantidad"
-                          style={{
-                            width: 64,
-                            height: 64,
-                            borderRadius: '0 4px 4px 0',
-                            border: '2px solid var(--border)',
-                            borderLeft: 'none',
-                            backgroundColor:
-                              quantity >= result.quantity ? 'var(--muted)' : 'var(--card)',
-                            cursor: quantity >= result.quantity ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--fg)',
-                            transition: 'background-color 0.1s ease',
-                          }}
-                        >
-                          <PlusIcon size={22} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ marginBottom: 20 }}>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.08em',
-                          color: 'var(--muted-fg)',
-                          marginBottom: 8,
-                        }}
-                      >
-                        Motivo de extracción <span style={{ color: '#9E1B32' }}>*</span>
-                      </div>
-                      <input
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        placeholder="Ej: Elaboración de informe trimestral, Examen parcial, etc."
-                        style={{ width: '100%', height: 48, padding: '0 14px', fontSize: 14, borderRadius: 4 }}
-                      />
-                    </div>
-
-                    <button
-                      onClick={() => void handleRegister()}
-                      disabled={!canRegister}
-                      style={{
-                        width: '100%',
-                        height: 56,
-                        borderRadius: 4,
-                        fontSize: 15,
-                        fontWeight: 800,
-                        letterSpacing: '0.05em',
-                        textTransform: 'uppercase',
-                        cursor: canRegister ? 'pointer' : 'not-allowed',
-                        border: 'none',
-                        fontFamily: 'inherit',
-                        backgroundColor: canRegister ? '#9E1B32' : 'var(--muted)',
-                        color: canRegister ? '#fff' : 'var(--muted-fg)',
-                        transition: 'background-color 0.15s ease, opacity 0.15s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 10,
-                      }}
-                    >
-                      <CheckIcon
-                        size={18}
-                        color={canRegister ? '#fff' : 'var(--muted-fg)'}
-                        strokeWidth={2.5}
-                      />
-                      Registrar extracción
-                    </button>
-                  </>
-                )}
-
-                <button
-                  onClick={handleReset}
-                  style={{
-                    width: '100%',
-                    marginTop: 10,
-                    height: 40,
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    color: 'var(--muted-fg)',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  Cancelar y volver a buscar
-                </button>
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {Array(5)
+                  .fill(0)
+                  .map((_, i) => (
+                    <SkeletonCard key={i} />
+                  ))}
               </div>
-            )}
-
-            {(state === 'idle' || state === 'searching') && !result && (
-              <div style={{ textAlign: 'center', color: 'var(--muted-fg)', marginTop: 16 }}>
-                <div style={{ fontSize: 13 }}>
-                  Escriba el nombre del material o su código SKU y presione <strong>Buscar</strong> o{' '}
-                  <strong>Enter</strong>
+            ) : results.length === 0 ? (
+              <div
+                style={{
+                  padding: '44px 16px',
+                  textAlign: 'center',
+                  color: 'var(--muted-fg)',
+                  border: '1px dashed var(--border)',
+                  borderRadius: 4,
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 6 }}>
+                  {catalog.length === 0
+                    ? 'Todavía no hay materiales registrados'
+                    : `Sin resultados para «${query}»`}
                 </div>
+                <div style={{ fontSize: 12 }}>
+                  {catalog.length === 0
+                    ? 'El almacén aún no ha cargado el inventario.'
+                    : 'Pruebe con otra palabra o revise el nombre del material.'}
+                </div>
+              </div>
+            ) : (
+              <div
+                data-kiosk-grid
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                  gap: 10,
+                }}
+              >
+                {results.map((p) => {
+                  const out = p.quantity === 0;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => pick(p)}
+                      disabled={out}
+                      className="kiosk-card"
+                      style={{
+                        display: 'flex',
+                        gap: 12,
+                        alignItems: 'center',
+                        textAlign: 'left',
+                        padding: 12,
+                        borderRadius: 4,
+                        border: '1px solid var(--border)',
+                        backgroundColor: 'var(--card)',
+                        cursor: out ? 'not-allowed' : 'pointer',
+                        opacity: out ? 0.55 : 1,
+                        fontFamily: 'inherit',
+                        transition: 'border-color 0.12s ease, box-shadow 0.12s ease',
+                      }}
+                    >
+                      <Thumb src={p.imageUrl} alt={p.name} size={54} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: 'var(--fg)',
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          <Highlight text={p.name} term={query.trim()} />
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--muted-fg)',
+                            marginTop: 2,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          <span style={{ fontFamily: 'monospace' }}>{p.sku}</span> · {p.category}
+                        </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            marginTop: 7,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 15,
+                              fontWeight: 800,
+                              color: out ? '#9E1B32' : 'var(--fg)',
+                              fontVariantNumeric: 'tabular-nums',
+                            }}
+                          >
+                            {p.quantity}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--muted-fg)' }}>{p.unit}s</span>
+                          <StockTag product={p} />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </>
         )}
+
+        {/* ---------- Retiro del material elegido ---------- */}
+        {state === 'selected' && selected && (
+          <div className="fade-in" style={{ width: '100%', maxWidth: 600, margin: '0 auto' }}>
+            <button
+              onClick={backToBrowse}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--muted-fg)',
+                fontSize: 12,
+                fontFamily: 'inherit',
+                padding: '4px 0',
+                marginBottom: 12,
+              }}
+            >
+              ← Volver al catálogo
+            </button>
+
+            <div
+              style={{
+                backgroundColor: 'var(--card)',
+                border: '2px solid #13294B',
+                borderRadius: 4,
+                overflow: 'hidden',
+                marginBottom: 22,
+              }}
+            >
+              {selected.imageUrl && (
+                <div style={{ height: 190, backgroundColor: 'var(--muted)' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={selected.imageUrl}
+                    alt={selected.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+              )}
+              <div style={{ padding: '16px 20px' }}>
+                <div
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    color: 'var(--muted-fg)',
+                    marginBottom: 4,
+                  }}
+                >
+                  {selected.category} · {selected.sku}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--fg)', marginBottom: 8 }}>
+                  {selected.name}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 800,
+                      color: selected.quantity <= selected.minStock ? '#9E1B32' : '#16a34a',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {selected.quantity}
+                  </span>
+                  <span style={{ fontSize: 14, color: 'var(--muted-fg)', fontWeight: 500 }}>
+                    {selected.unit}s disponibles
+                  </span>
+                  <StockTag product={selected} />
+                </div>
+              </div>
+            </div>
+
+            <ErrorBanner message={error} onDismiss={() => setError(null)} />
+
+            <div style={{ marginBottom: 16 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: 'var(--muted-fg)',
+                  marginBottom: 10,
+                  textAlign: 'center',
+                }}
+              >
+                Cantidad a retirar
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  disabled={quantity <= 1}
+                  aria-label="Disminuir cantidad"
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '4px 0 0 4px',
+                    border: '2px solid var(--border)',
+                    borderRight: 'none',
+                    backgroundColor: quantity <= 1 ? 'var(--muted)' : 'var(--card)',
+                    cursor: quantity <= 1 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--fg)',
+                  }}
+                >
+                  <MinusIcon size={22} />
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={selected.quantity}
+                  value={quantity}
+                  aria-label="Cantidad"
+                  onChange={(e) =>
+                    setQuantity(Math.max(1, Math.min(selected.quantity, Number(e.target.value))))
+                  }
+                  style={{
+                    width: 100,
+                    height: 64,
+                    textAlign: 'center',
+                    fontSize: 28,
+                    fontWeight: 800,
+                    borderRadius: 0,
+                    border: '2px solid var(--border)',
+                    fontVariantNumeric: 'tabular-nums',
+                    backgroundColor: 'var(--card)',
+                    color: 'var(--fg)',
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={() => setQuantity((q) => Math.min(selected.quantity, q + 1))}
+                  disabled={quantity >= selected.quantity}
+                  aria-label="Aumentar cantidad"
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '0 4px 4px 0',
+                    border: '2px solid var(--border)',
+                    borderLeft: 'none',
+                    backgroundColor:
+                      quantity >= selected.quantity ? 'var(--muted)' : 'var(--card)',
+                    cursor: quantity >= selected.quantity ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--fg)',
+                  }}
+                >
+                  <PlusIcon size={22} />
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: 'var(--muted-fg)',
+                  marginBottom: 8,
+                }}
+              >
+                Motivo de extracción <span style={{ color: '#9E1B32' }}>*</span>
+              </div>
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Ej: Elaboración de informe trimestral, Examen parcial, etc."
+                style={{ width: '100%', height: 48, padding: '0 14px', fontSize: 14, borderRadius: 4 }}
+              />
+            </div>
+
+            <button
+              onClick={() => void handleRegister()}
+              disabled={!canRegister}
+              style={{
+                width: '100%',
+                height: 56,
+                borderRadius: 4,
+                fontSize: 15,
+                fontWeight: 800,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                cursor: canRegister ? 'pointer' : 'not-allowed',
+                border: 'none',
+                fontFamily: 'inherit',
+                backgroundColor: canRegister ? '#9E1B32' : 'var(--muted)',
+                color: canRegister ? '#fff' : 'var(--muted-fg)',
+                transition: 'background-color 0.15s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+              }}
+            >
+              <CheckIcon size={18} color={canRegister ? '#fff' : 'var(--muted-fg)'} strokeWidth={2.5} />
+              Registrar extracción
+            </button>
+          </div>
+        )}
       </div>
+
+      <style>{`
+        .kiosk-card:hover:not(:disabled) {
+          border-color: #13294B !important;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        @media (max-width: 560px) {
+          [data-kiosk-grid] { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

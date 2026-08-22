@@ -63,13 +63,24 @@ export const PATCH = route(async (req: Request, ctx: Ctx) => {
   return NextResponse.json({ product: toProduct(updated) });
 });
 
+/**
+ * Elimina el producto junto con su historial de movimientos.
+ *
+ * La bitácora se borra a propósito: un movimiento sin producto deja de tener
+ * categoría, y los cuadros de cierre lo arrastrarían como «Sin categoría» con
+ * saldos iniciales negativos. Para conservar el historial, marque el producto
+ * con stock 0 en lugar de eliminarlo.
+ */
 export const DELETE = route(async (_req: Request, ctx: Ctx) => {
   await requireUser(['admin', 'stockkeeper']);
   const { id } = await ctx.params;
   const { products, doc } = await findOr404(id);
 
+  const movements = await collection(COLLECTIONS.movements);
+  const { deletedCount } = await movements.deleteMany({ productId: doc._id });
+
   await products.deleteOne({ _id: doc._id });
   await deleteImageByUrl(doc.imageUrl);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, movimientosEliminados: deletedCount ?? 0 });
 });

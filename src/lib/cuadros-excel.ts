@@ -85,7 +85,11 @@ function footer(ws: ExcelJS.Worksheet, startRow: number, lastCol: string, span: 
   const signRow = startRow + 4;
   const width = Math.max(1, Math.floor(span / 3));
   const titles = ['Firma Contabilidad', 'Firma DGAA - DAF', 'Firma Responsable'];
-  const subs = ['', 'Jefe Administrativo y Financiero', 'Encargado de Almacén Facultativo'];
+  const subs = [
+    'Contaduría F.C.E.E.',
+    'Jefe Administrativo y Financiero',
+    'Encargado de Almacén Facultativo',
+  ];
 
   titles.forEach((title, i) => {
     const from = i * width + 1;
@@ -103,12 +107,19 @@ function footer(ws: ExcelJS.Worksheet, startRow: number, lastCol: string, span: 
 
     ws.mergeCells(signRow + 2, from, signRow + 2, to);
     const s = ws.getCell(signRow + 2, from);
-    s.value = [subs[i], BRAND.faculty, 'U.A.G.R.M.'].filter(Boolean).join(' · ');
-    s.font = { name: 'Arial', size: 8 };
-    s.alignment = { horizontal: 'center', wrapText: true };
-  });
+    s.value = subs[i];
+    s.font = { name: 'Arial', size: 8, color: { argb: 'FF333333' } };
+    s.alignment = { horizontal: 'center' };
 
-  const notaRow = signRow + 4;
+    ws.mergeCells(signRow + 3, from, signRow + 3, to);
+    const u = ws.getCell(signRow + 3, from);
+    u.value = 'U.A.G.R.M.';
+    u.font = { name: 'Arial', size: 8, color: { argb: 'FF333333' } };
+    u.alignment = { horizontal: 'center' };
+  });
+  ws.getRow(signRow).height = 6;
+
+  const notaRow = signRow + 5;
   ws.mergeCells(`A${notaRow}:${lastCol}${notaRow}`);
   const n2 = ws.getCell(`A${notaRow}`);
   n2.value = NOTA_2;

@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Skeleton } from '@/components/Skeleton';
 import ErrorBanner from '@/components/ErrorBanner';
 import { DownloadIcon, FileTextIcon, FilterIcon } from '@/components/Icons';
 import CuadrosAlmacenes from './CuadrosAlmacenes';
@@ -345,265 +344,51 @@ export default function AdminReports() {
             </div>
           </div>
 
-          {/* Preview table */}
+          {/* Resumen compacto del período — sustituye a la vista previa */}
           <div
             style={{
               backgroundColor: 'var(--card)',
               border: '1px solid var(--border)',
               borderRadius: 4,
-              overflow: 'hidden',
+              padding: 16,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+              gap: 12,
             }}
           >
-            <div
-              style={{
-                padding: '12px 16px',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-                flexWrap: 'wrap',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  color: 'var(--muted-fg)',
-                }}
-              >
-                Vista previa del reporte
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--muted-fg)' }}>
-                {rows.length} artículos · Valor total:{' '}
-                <strong style={{ color: 'var(--fg)', fontVariantNumeric: 'tabular-nums' }}>
-                  Bs. {totalValue.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
-                </strong>
-              </div>
-            </div>
-
-            <div
-              className="font-report"
-              style={{
-                margin: '0 16px',
-                padding: '16px',
-                border: '1px solid var(--border)',
-                borderTop: 'none',
-                borderBottom: '2px solid #13294B',
-              }}
-            >
-              <div style={{ textAlign: 'center', marginBottom: 12 }}>
+            {[
+              ['Artículos', loading ? '—' : String(rows.length), false],
+              ['Unidades en stock', loading ? '—' : (data?.totalUnits ?? 0).toLocaleString('es-BO'), false],
+              ['Valor inventariado', loading ? '—' : `Bs. ${totalValue.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`, false],
+              ['Entradas', loading ? '—' : String(data?.totalEntradas ?? 0), false],
+              ['Salidas', loading ? '—' : String(data?.totalSalidas ?? 0), false],
+              ['Stock crítico', loading ? '—' : String(data?.criticalCount ?? 0), (data?.criticalCount ?? 0) > 0],
+            ].map(([label, value, alert]) => (
+              <div key={label as string}>
                 <div
                   style={{
-                    fontSize: 13,
+                    fontSize: 9,
                     fontWeight: 700,
-                    color: 'var(--fg)',
-                    letterSpacing: '0.05em',
+                    letterSpacing: '0.09em',
+                    textTransform: 'uppercase',
+                    color: 'var(--muted-fg)',
+                    marginBottom: 5,
                   }}
                 >
-                  UNIVERSIDAD AUTÓNOMA GABRIEL RENÉ MORENO
+                  {label as string}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--fg)', marginTop: 2 }}>
-                  Facultad de Ciencias Económicas y Empresariales
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--muted-fg)', marginTop: 4 }}>
-                  Informe de Inventario · Período {filters.dateFrom} / {filters.dateTo}
+                <div
+                  style={{
+                    fontSize: 17,
+                    fontWeight: 700,
+                    color: alert ? '#9E1B32' : 'var(--fg)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {value as string}
                 </div>
               </div>
-            </div>
-
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#13294B' }}>
-                    {[
-                      'Código',
-                      'Descripción',
-                      'Categoría',
-                      'Unidad',
-                      'Stock',
-                      'P. Unitario (Bs.)',
-                      'Valor Total (Bs.)',
-                      'Estado',
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: '9px 14px',
-                          textAlign:
-                            h.includes('Bs.') || h === 'Stock'
-                              ? 'right'
-                              : h === 'Estado'
-                                ? 'center'
-                                : 'left',
-                          fontSize: 10,
-                          fontWeight: 700,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          color: 'rgba(255,255,255,0.75)',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    Array(4)
-                      .fill(0)
-                      .map((_, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                          {Array(8)
-                            .fill(0)
-                            .map((_, j) => (
-                              <td key={j} style={{ padding: '10px 14px' }}>
-                                <Skeleton width={j === 1 ? 120 : 55} height={11} />
-                              </td>
-                            ))}
-                        </tr>
-                      ))
-                  ) : rows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={8}
-                        style={{
-                          padding: '28px 14px',
-                          textAlign: 'center',
-                          fontSize: 13,
-                          color: 'var(--muted-fg)',
-                        }}
-                      >
-                        Sin datos para los filtros seleccionados.
-                      </td>
-                    </tr>
-                  ) : (
-                    rows.map((p, i) => (
-                      <tr
-                        key={p.sku}
-                        style={{
-                          borderBottom: '1px solid var(--border)',
-                          backgroundColor: i % 2 === 0 ? 'transparent' : 'var(--muted)',
-                        }}
-                      >
-                        <td
-                          style={{
-                            padding: '10px 14px',
-                            fontSize: 11,
-                            color: 'var(--muted-fg)',
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {p.sku}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 14px',
-                            fontSize: 12,
-                            color: 'var(--fg)',
-                            fontWeight: 500,
-                          }}
-                        >
-                          {p.name}
-                        </td>
-                        <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--muted-fg)' }}>
-                          {p.category}
-                        </td>
-                        <td style={{ padding: '10px 14px', fontSize: 11, color: 'var(--muted-fg)' }}>
-                          {p.unit}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 14px',
-                            fontSize: 12,
-                            color: 'var(--fg)',
-                            textAlign: 'right',
-                            fontVariantNumeric: 'tabular-nums',
-                          }}
-                        >
-                          {p.quantity.toLocaleString()}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 14px',
-                            fontSize: 12,
-                            color: 'var(--fg)',
-                            textAlign: 'right',
-                            fontVariantNumeric: 'tabular-nums',
-                          }}
-                        >
-                          {p.unitPrice.toFixed(2)}
-                        </td>
-                        <td
-                          style={{
-                            padding: '10px 14px',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: 'var(--fg)',
-                            textAlign: 'right',
-                            fontVariantNumeric: 'tabular-nums',
-                          }}
-                        >
-                          {p.totalValue.toFixed(2)}
-                        </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                          <span
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              padding: '3px 7px',
-                              borderRadius: 2,
-                              backgroundColor: p.estado === 'Crítico' ? '#fef2f2' : '#f0fdf4',
-                              color: p.estado === 'Crítico' ? '#9E1B32' : '#16a34a',
-                              border: `1px solid ${p.estado === 'Crítico' ? '#fecaca' : '#bbf7d0'}`,
-                            }}
-                          >
-                            {p.estado}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid var(--border)', backgroundColor: 'var(--muted)' }}>
-                    <td
-                      colSpan={6}
-                      style={{
-                        padding: '10px 14px',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        textAlign: 'right',
-                        color: 'var(--fg)',
-                      }}
-                    >
-                      TOTAL INVENTARIADO
-                      {data && data.criticalCount > 0 && (
-                        <span style={{ color: '#9E1B32', marginLeft: 10, fontWeight: 600 }}>
-                          · {data.criticalCount} en stock crítico
-                        </span>
-                      )}
-                    </td>
-                    <td
-                      style={{
-                        padding: '10px 14px',
-                        fontSize: 13,
-                        fontWeight: 700,
-                        textAlign: 'right',
-                        color: '#13294B',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      Bs. {totalValue.toFixed(2)}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+            ))}
           </div>
         </div>
       </div>
