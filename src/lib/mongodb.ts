@@ -19,7 +19,15 @@ export function getClient(): Promise<MongoClient> {
   }
   return (globalForMongo._mongoClientPromise ??= new MongoClient(uri, {
     maxPoolSize: 10,
-  }).connect());
+  })
+    .connect()
+    .catch((err) => {
+      // Si la conexión falla (Atlas caído, IP no autorizada…) no se deja la
+      // promesa rechazada en caché: el siguiente request vuelve a intentarlo
+      // en lugar de fallar para siempre hasta reiniciar el servidor.
+      globalForMongo._mongoClientPromise = undefined;
+      throw err;
+    }));
 }
 
 export async function getDb(): Promise<Db> {

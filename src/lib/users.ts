@@ -61,7 +61,8 @@ function adminEmails(): string[] {
  * Registra (o actualiza) al usuario que acaba de autenticarse con Google.
  *
  * El rol nunca lo elige el usuario:
- *  - Si su correo está en ADMIN_EMAILS, entra como admin.
+ *  - Si su correo está en ADMIN_EMAILS, entra como admin, aunque ya existiera
+ *    con otro rol o marcado como inactivo. Es la vía para recuperar el acceso.
  *  - Si es el primer usuario del sistema, entra como admin (bootstrap).
  *  - En cualquier otro caso entra como 'employee' y un admin puede promoverlo
  *    desde la pantalla de Usuarios.
@@ -77,26 +78,30 @@ export async function upsertGoogleUser(input: {
   const users = await collection<UserDoc>(COLLECTIONS.users);
   const email = input.email.toLowerCase();
   const now = new Date();
+  const isListedAdmin = adminEmails().includes(email);
 
   const existing = await users.findOne({ email });
 
   if (existing) {
-    if (existing.status === 'inactive') return null;
+    const role: Role = isListedAdmin ? 'admin' : existing.role;
+    const status = isListedAdmin ? 'active' : existing.status;
+    if (status === 'inactive') return null;
     await users.updateOne(
       { _id: existing._id },
       {
         $set: {
           name: existing.name || input.name || email,
           image: input.image ?? existing.image,
+          role,
+          status,
           lastLogin: now,
           updatedAt: now,
         },
       }
     );
-    return toAppUser({ ...existing, lastLogin: now });
+    return toAppUser({ ...existing, role, status, lastLogin: now });
   }
 
-  const isListedAdmin = adminEmails().includes(email);
   const isFirstUser = (await users.estimatedDocumentCount()) === 0;
   const role: Role = isListedAdmin || isFirstUser ? 'admin' : 'employee';
 
