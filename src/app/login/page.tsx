@@ -4,8 +4,14 @@ import Logo from '@/components/Logo';
 import { ChevronRightIcon } from '@/components/Icons';
 
 const ERRORS: Record<string, string> = {
-  AccessDenied:
+  AccountDisabled:
     'Su cuenta está desactivada. Comuníquese con el administrador del sistema para reactivarla.',
+  DatabaseUnavailable:
+    'No se pudo conectar con la base de datos para verificar su cuenta. Revise la variable MONGODB_URI y que MongoDB Atlas acepte conexiones desde el servidor (Network Access).',
+  EmailRequired:
+    'Su cuenta de Google no compartió un correo electrónico. Intente con otra cuenta.',
+  AccessDenied:
+    'No se pudo verificar su cuenta. Intente nuevamente; si el problema continúa, comuníquese con el administrador del sistema.',
   Configuration:
     'El inicio de sesión con Google no está configurado. Revise las variables AUTH_GOOGLE_ID y AUTH_GOOGLE_SECRET.',
   Verification: 'El enlace de acceso expiró. Intente iniciar sesión nuevamente.',

@@ -79,15 +79,27 @@ npm run dev     # http://localhost:3000
 
 El usuario **nunca elige su nivel de acceso**. Al iniciar sesión con Google:
 
-1. Si su correo figura en `ADMIN_EMAILS` → entra como **Super Administrador**.
+1. Si su correo figura en `ADMIN_EMAILS` → entra como **Super Administrador**, aunque ya
+   estuviera registrado con otro rol o marcado como inactivo.
 2. Si la colección `users` está vacía, el **primer** usuario en entrar queda como
    Super Administrador (arranque del sistema).
 3. En cualquier otro caso entra como **Empleado**, con acceso únicamente al kiosco.
 4. Un Super Administrador puede cambiar el rol de cualquiera desde **Usuarios**, o
    pre-registrar a alguien con su rol antes de su primer inicio de sesión.
-5. Un usuario marcado como **Inactivo** no puede volver a entrar.
+5. Un usuario marcado como **Inactivo** no puede volver a entrar (salvo los correos de
+   `ADMIN_EMAILS`).
 
 Los cambios de rol se reflejan en la sesión activa en un máximo de 5 minutos.
+
+### Si no puede iniciar sesión
+
+La pantalla de acceso indica el motivo exacto del rechazo:
+
+| Mensaje | Qué hacer |
+| --- | --- |
+| *Su cuenta está desactivada* | Un Super Administrador debe reactivarla en **Usuarios**. Si nadie puede entrar, agregue su correo a `ADMIN_EMAILS` y vuelva a iniciar sesión. |
+| *No se pudo conectar con la base de datos* | Revise `MONGODB_URI` en el servidor y, en MongoDB Atlas → **Network Access**, autorice la IP del servidor (en Vercel y similares, `0.0.0.0/0`). El error completo queda en los logs del servidor con el prefijo `[auth]`. |
+| *El inicio de sesión con Google no está configurado* | Revise `AUTH_SECRET`, `AUTH_GOOGLE_ID` y `AUTH_GOOGLE_SECRET`. |
 
 ### Qué ve cada rol
 

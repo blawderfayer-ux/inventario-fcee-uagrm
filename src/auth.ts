@@ -12,15 +12,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     /**
      * Cualquier cuenta de Google puede entrar; el rol se asigna en MongoDB.
      * Solo se rechaza a quien un admin haya marcado como inactivo.
+     *
+     * Cada rechazo redirige con su propio código de error. Auth.js convierte
+     * cualquier excepción de este callback en `AccessDenied`, así que un fallo
+     * de MongoDB se mostraba como «cuenta desactivada» aunque no lo estuviera.
      */
     async signIn({ user }) {
-      if (!user.email) return false;
-      const appUser = await upsertGoogleUser({
-        name: user.name,
-        email: user.email,
-        image: user.image,
-      });
-      return appUser ? true : '/login?error=AccessDenied';
+      if (!user.email) return '/login?error=EmailRequired';
+      try {
+        const appUser = await upsertGoogleUser({
+          name: user.name,
+          email: user.email,
+          image: user.image,
+        });
+        return appUser ? true : '/login?error=AccountDisabled';
+      } catch (err) {
+        console.error('[auth] No se pudo verificar la cuenta en MongoDB:', err);
+        return '/login?error=DatabaseUnavailable';
+      }
     },
 
     async jwt({ token, trigger }) {
